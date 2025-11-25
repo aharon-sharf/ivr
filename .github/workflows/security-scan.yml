@@ -1,0 +1,223 @@
+name: Security Scanning
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Run npm audit (Backend)
+        run: |
+          npm audit --audit-level=moderate || true
+          npm audit --json > audit-backend.json || true
+      
+      - name: Run npm audit (Frontend)
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=moderate || true
+          npm audit --json > audit-frontend.json || true
+      
+      - name: Upload audit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: npm-audit-results
+          path: |
+            audit-backend.json
+            frontend/audit-frontend.json
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  docker-scan:
+    name: Docker Image Vulnerability Scan
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    strategy:
+      matrix:
+        function:
+          - api-handler
+          - dispatcher
+          - dialer-worker
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        working-directory: src/lambda/${{ matrix.function }}
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t ${{ matrix.function }}:scan .
+          else
+            echo "No Dockerfile found, skipping..."
+            exit 0
+          fi
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.function }}:scan
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.function }}.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.function }}.sarif'
+
+  terraform-security:
+    name: Terraform Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: terraform
+          soft_fail: true
+      
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform
+          framework: terraform
+          soft_fail: true
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+      
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    strategy:
+      matrix:
+        language: ['javascript', 'typescript']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secret-scan, docker-scan, terraform-security, codeql-analysis]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Security Scan Results 🔒" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.dependency-scan.result }}" == "success" ]; then
+            echo "✅ Dependency scan completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Dependency scan failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.secret-scan.result }}" == "success" ]; then
+            echo "✅ Secret scan completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Secret scan found issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.docker-scan.result }}" == "success" ]; then
+            echo "✅ Docker image scan completed" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.docker-scan.result }}" == "skipped" ]; then
+            echo "⏭️ Docker image scan skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Docker image scan found vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.terraform-security.result }}" == "success" ]; then
+            echo "✅ Terraform security scan completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Terraform security scan found issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.codeql-analysis.result }}" == "success" ]; then
+            echo "✅ CodeQL analysis completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ CodeQL analysis found issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "- Review Security tab for detailed findings" >> $GITHUB_STEP_SUMMARY
+          echo "- Update dependencies with known vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Address any secrets found in code" >> $GITHUB_STEP_SUMMARY
+          echo "- Review and fix Terraform security issues" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,47 @@
+---
+# Master playbook for complete Asterisk setup
+- name: Complete Asterisk Telephony System Setup
+  hosts: asterisk
+  become: yes
+
+  tasks:
+    - name: Display setup information
+      debug:
+        msg: |
+          Starting Asterisk telephony system setup
+          This will:
+          1. Install Asterisk from source
+          2. Configure SIP trunk, AMI, and ARI
+          3. Set up IVR dialplan
+          4. Deploy Node.js worker
+          5. Configure systemd services
+
+- import_playbook: asterisk-setup.yml
+- import_playbook: asterisk-configure.yml
+- import_playbook: nodejs-worker-deploy.yml
+
+- name: Final verification
+  hosts: asterisk
+  become: yes
+  tasks:
+    - name: Check Asterisk service status
+      systemd:
+        name: asterisk
+      register: asterisk_status
+
+    - name: Check Node.js worker service status
+      systemd:
+        name: asterisk-worker
+      register: worker_status
+
+    - name: Display final status
+      debug:
+        msg: |
+          Setup Complete!
+          Asterisk: {{ asterisk_status.status.ActiveState }}
+          Node.js Worker: {{ worker_status.status.ActiveState }}
+          
+          Next steps:
+          1. Configure your SIP trunk credentials in group_vars/asterisk.yml
+          2. Upload audio files to S3 bucket
+          3. Test with: ansible-playbook -i inventory/hosts.ini test-call.yml

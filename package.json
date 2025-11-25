@@ -1,0 +1,46 @@
+{
+  "name": "mass-voice-campaign-system",
+  "version": "1.0.0",
+  "description": "Mass Voice Campaign System - Enterprise-grade outbound voice campaign platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run tests/integration --run",
+    "test:integration:watch": "vitest tests/integration",
+    "test:unit": "vitest run tests/database tests/models --run",
+    "docker:test:up": "cd tests/integration && docker-compose -f docker-compose.test.yml up -d",
+    "docker:test:down": "cd tests/integration && docker-compose -f docker-compose.test.yml down",
+    "docker:test:clean": "cd tests/integration && docker-compose -f docker-compose.test.yml down -v",
+    "docker:test:logs": "cd tests/integration && docker-compose -f docker-compose.test.yml logs -f"
+  },
+  "keywords": ["voice", "campaign", "ivr", "telephony"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "fast-check": "^3.15.0",
+    "pg": "^8.11.3",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "aws-jwt-verify": "^4.0.1",
+    "@types/aws-lambda": "^8.10.131",
+    "xlsx": "^0.18.5",
+    "redis": "^4.6.12",
+    "axios": "^1.6.2",
+    "@aws-sdk/client-sagemaker-runtime": "^3.490.0",
+    "@aws-sdk/client-lambda": "^3.490.0",
+    "@aws-sdk/client-sqs": "^3.490.0",
+    "@aws-sdk/client-polly": "^3.490.0",
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/client-sns": "^3.490.0",
+    "@vonage/server-sdk": "^3.10.0",
+    "crypto": "^1.0.1",
+    "mongodb": "^6.3.0"
+  }
+}

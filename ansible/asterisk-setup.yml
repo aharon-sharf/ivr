@@ -1,0 +1,178 @@
+---
+- name: Install and Configure Asterisk Telephony Server
+  hosts: asterisk
+  become: yes
+  vars_files:
+    - group_vars/asterisk.yml
+
+  tasks:
+    - name: Update system packages
+      yum:
+        name: '*'
+        state: latest
+        update_cache: yes
+
+    - name: Install development tools and dependencies
+      yum:
+        name:
+          - gcc
+          - gcc-c++
+          - make
+          - wget
+          - tar
+          - bzip2
+          - patch
+          - libedit-devel
+          - libuuid-devel
+          - jansson-devel
+          - libxml2-devel
+          - sqlite-devel
+          - openssl-devel
+          - ncurses-devel
+          - newt-devel
+          - kernel-devel
+          - kernel-headers
+          - libtool
+          - autoconf
+          - automake
+          - git
+          - subversion
+        state: present
+
+    - name: Download Asterisk source
+      get_url:
+        url: "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-{{ asterisk_version }}.tar.gz"
+        dest: "/usr/src/asterisk-{{ asterisk_version }}.tar.gz"
+        mode: '0644'
+
+    - name: Extract Asterisk source
+      unarchive:
+        src: "/usr/src/asterisk-{{ asterisk_version }}.tar.gz"
+        dest: "/usr/src/"
+        remote_src: yes
+        creates: "/usr/src/asterisk-{{ asterisk_version }}"
+
+    - name: Install Asterisk prerequisites
+      shell: |
+        cd /usr/src/asterisk-{{ asterisk_version }}
+        contrib/scripts/install_prereq install
+      args:
+        creates: /usr/src/asterisk-{{ asterisk_version }}/.prereq_installed
+      register: prereq_result
+
+    - name: Mark prerequisites as installed
+      file:
+        path: "/usr/src/asterisk-{{ asterisk_version }}/.prereq_installed"
+        state: touch
+      when: prereq_result.changed
+
+    - name: Configure Asterisk build
+      shell: |
+        cd /usr/src/asterisk-{{ asterisk_version }}
+        ./configure --with-jansson-bundled --with-pjproject-bundled
+      args:
+        creates: /usr/src/asterisk-{{ asterisk_version }}/makeopts
+
+    - name: Select Asterisk modules
+      shell: |
+        cd /usr/src/asterisk-{{ asterisk_version }}
+        make menuselect.makeopts
+        menuselect/menuselect \
+          --enable res_http_websocket \
+          --enable res_ari \
+          --enable res_ari_applications \
+          --enable res_ari_asterisk \
+          --enable res_ari_bridges \
+          --enable res_ari_channels \
+          --enable res_ari_device_states \
+          --enable res_ari_endpoints \
+          --enable res_ari_events \
+          --enable res_ari_mailboxes \
+          --enable res_ari_model \
+          --enable res_ari_playbacks \
+          --enable res_ari_recordings \
+          --enable res_ari_sounds \
+          --enable chan_pjsip \
+          --enable res_pjsip \
+          --enable res_pjsip_session \
+          menuselect.makeopts
+      args:
+        creates: /usr/src/asterisk-{{ asterisk_version }}/menuselect.makeopts
+
+    - name: Compile Asterisk
+      shell: |
+        cd /usr/src/asterisk-{{ asterisk_version }}
+        make -j$(nproc)
+      args:
+        creates: /usr/src/asterisk-{{ asterisk_version }}/main/asterisk
+
+    - name: Install Asterisk
+      shell: |
+        cd /usr/src/asterisk-{{ asterisk_version }}
+        make install
+        make samples
+        make config
+      args:
+        creates: /usr/sbin/asterisk
+
+    - name: Create Asterisk user
+      user:
+        name: asterisk
+        system: yes
+        shell: /bin/false
+        home: /var/lib/asterisk
+        create_home: no
+
+    - name: Set Asterisk file ownership
+      file:
+        path: "{{ item }}"
+        owner: asterisk
+        group: asterisk
+        recurse: yes
+      loop:
+        - /etc/asterisk
+        - /var/lib/asterisk
+        - /var/log/asterisk
+        - /var/spool/asterisk
+        - /usr/lib64/asterisk
+
+    - name: Set Asterisk binary ownership
+      file:
+        path: /usr/sbin/asterisk
+        owner: asterisk
+        group: asterisk
+
+    - name: Configure Asterisk to run as asterisk user
+      lineinfile:
+        path: /etc/sysconfig/asterisk
+        regexp: '^#?AST_USER='
+        line: 'AST_USER="asterisk"'
+        create: yes
+
+    - name: Configure Asterisk to run as asterisk group
+      lineinfile:
+        path: /etc/sysconfig/asterisk
+        regexp: '^#?AST_GROUP='
+        line: 'AST_GROUP="asterisk"'
+
+    - name: Enable and start Asterisk service
+      systemd:
+        name: asterisk
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Asterisk to start
+      wait_for:
+        port: 5060
+        delay: 5
+        timeout: 30
+
+    - name: Display Asterisk version
+      command: asterisk -V
+      register: asterisk_version_output
+      changed_when: false
+
+    - name: Show Asterisk version
+      debug:
+        msg: "{{ asterisk_version_output.stdout }}"

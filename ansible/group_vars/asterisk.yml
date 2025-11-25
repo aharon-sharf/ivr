@@ -1,0 +1,38 @@
+# Asterisk Configuration Variables
+
+# Asterisk version
+asterisk_version: "20.10.0"
+
+# SIP Trunk Configuration (Israeli Provider)
+sip_trunk_provider: "019"  # or "Partner"
+sip_trunk_host: "sip.019.co.il"  # Replace with actual provider SIP server
+sip_trunk_username: "{{ lookup('env', 'SIP_TRUNK_USERNAME') }}"
+sip_trunk_password: "{{ lookup('env', 'SIP_TRUNK_PASSWORD') }}"
+sip_trunk_context: "from-trunk"
+
+# AMI Configuration
+ami_enabled: true
+ami_port: 5038
+ami_username: "admin"
+ami_password: "{{ lookup('env', 'AMI_PASSWORD') }}"
+
+# ARI Configuration
+ari_enabled: true
+ari_port: 8088
+ari_username: "asterisk"
+ari_password: "{{ lookup('env', 'ARI_PASSWORD') }}"
+
+# RTP Port Range
+rtp_start: 10000
+rtp_end: 20000
+
+# Node.js Worker Configuration
+nodejs_worker_port: 3000
+nodejs_worker_dir: "/opt/asterisk-worker"
+
+# AWS Configuration
+aws_region: "il-central-1"
+s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') }}"
+
+# Logging
+asterisk_log_level: "verbose,debug,notice,warning,error"

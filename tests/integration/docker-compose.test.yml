@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for transactional data
+  postgres:
+    image: postgres:15-alpine
+    container_name: campaign-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: campaign_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      - ../../database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # MongoDB for CDRs and event logs
+  mongodb:
+    image: mongo:7.0
+    container_name: campaign-test-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: test_password
+      MONGO_INITDB_DATABASE: campaign_test
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb-test-data:/data/db
+      - ./fixtures/mongodb-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Redis for rate limiting and caching
+  redis:
+    image: redis:7-alpine
+    container_name: campaign-test-redis
+    command: redis-server --requirepass test_password
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-test-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # LocalStack for AWS services (optional - for full integration tests)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: campaign-test-localstack
+    environment:
+      SERVICES: s3,sqs,sns,lambda,dynamodb,secretsmanager
+      DEBUG: 1
+      DATA_DIR: /tmp/localstack/data
+      LAMBDA_EXECUTOR: docker
+      DOCKER_HOST: unix:///var/run/docker.sock
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - localstack-test-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+volumes:
+  postgres-test-data:
+  mongodb-test-data:
+  redis-test-data:
+  localstack-test-data:
+
+networks:
+  test-network:
+    driver: bridge

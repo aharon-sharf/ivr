@@ -1,0 +1,67 @@
+# Compute Module Variables
+
+variable "project_name" {
+  description = "Project name for resource naming"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+}
+
+variable "public_subnet_ids" {
+  description = "Public subnet IDs"
+  type        = list(string)
+}
+
+variable "asterisk_instance_type" {
+  description = "EC2 instance type for Asterisk"
+  type        = string
+}
+
+variable "asterisk_key_name" {
+  description = "SSH key pair name for Asterisk EC2"
+  type        = string
+}
+
+variable "dial_tasks_queue_arn" {
+  description = "Dial tasks SQS queue ARN"
+  type        = string
+}
+
+variable "rds_endpoint" {
+  description = "RDS endpoint"
+  type        = string
+}
+
+variable "redis_endpoint" {
+  description = "Redis endpoint"
+  type        = string
+}
+
+variable "audio_files_bucket" {
+  description = "Audio files S3 bucket name"
+  type        = string
+}
+
+variable "ml_models_bucket" {
+  description = "ML models S3 bucket name"
+  type        = string
+}
+
+variable "tags" {
+  description = "Common tags for all resources"
+  type        = map(string)
+  default     = {}
+}

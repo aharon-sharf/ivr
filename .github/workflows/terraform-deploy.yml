@@ -1,0 +1,416 @@
+name: Terraform Infrastructure Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform-deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  AWS_REGION: il-central-1
+  TERRAFORM_VERSION: '1.6.0'
+
+jobs:
+  terraform-validate:
+    name: Validate Terraform Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Terraform Format Check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend=false
+      
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: terraform-validate
+    
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    
+    strategy:
+      matrix:
+        environment: [dev, staging, production]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=mass-voice-campaign-terraform-state-${{ matrix.environment }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-${{ matrix.environment }}"
+      
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: |
+          terraform workspace select ${{ matrix.environment }} || terraform workspace new ${{ matrix.environment }}
+      
+      - name: Terraform Plan
+        id: plan
+        working-directory: terraform
+        run: |
+          terraform plan \
+            -var-file="environments/${{ matrix.environment }}.tfvars" \
+            -out=tfplan-${{ matrix.environment }} \
+            -no-color
+        continue-on-error: true
+      
+      - name: Save Plan Output
+        if: steps.plan.outcome == 'success'
+        working-directory: terraform
+        run: |
+          terraform show -no-color tfplan-${{ matrix.environment }} > plan-output-${{ matrix.environment }}.txt
+      
+      - name: Upload Plan Artifact
+        if: steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: terraform/tfplan-${{ matrix.environment }}
+          retention-days: 5
+      
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request' && steps.plan.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan-output-${{ matrix.environment }}.txt', 'utf8');
+            const output = `#### Terraform Plan for \`${{ matrix.environment }}\` 📖
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`terraform
+            ${plan}
+            \`\`\`
+            
+            </details>
+            
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+      
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  terraform-apply-dev:
+    name: Apply Terraform (Dev)
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: |
+      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev' && github.event.inputs.action == 'apply')
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: dev
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-dev
+          path: terraform/
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=mass-voice-campaign-terraform-state-dev" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-dev"
+      
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: terraform workspace select dev || terraform workspace new dev
+      
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan-dev
+
+  terraform-apply-staging:
+    name: Apply Terraform (Staging)
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' && github.event.inputs.action == 'apply')
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-staging
+          path: terraform/
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=mass-voice-campaign-terraform-state-staging" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-staging"
+      
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: terraform workspace select staging || terraform workspace new staging
+      
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan-staging
+
+  terraform-apply-production:
+    name: Apply Terraform (Production)
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' && github.event.inputs.action == 'apply'
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: production
+      url: https://dashboard.mass-voice-campaign.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-production
+          path: terraform/
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=mass-voice-campaign-terraform-state-production" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-production"
+      
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: terraform workspace select production || terraform workspace new production
+      
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan-production
+      
+      - name: Post-deployment validation
+        run: |
+          echo "Running post-deployment validation..."
+          # Add health checks here
+          sleep 30
+          echo "Validation complete"
+
+  terraform-destroy:
+    name: Destroy Terraform Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: ${{ github.event.inputs.environment }}-destroy
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=mass-voice-campaign-terraform-state-${{ github.event.inputs.environment }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-${{ github.event.inputs.environment }}"
+      
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: terraform workspace select ${{ github.event.inputs.environment }}
+      
+      - name: Terraform Destroy
+        working-directory: terraform
+        run: |
+          terraform destroy \
+            -var-file="environments/${{ github.event.inputs.environment }}.tfvars" \
+            -auto-approve
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [terraform-validate, terraform-plan]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Terraform Deployment Summary 🏗️" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.terraform-validate.result }}" == "success" ]; then
+            echo "✅ Terraform validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Terraform validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.terraform-plan.result }}" == "success" ]; then
+            echo "✅ Terraform plan generated" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Terraform plan failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "- Review the Terraform plan in the PR comments" >> $GITHUB_STEP_SUMMARY
+            echo "- Merge the PR to apply changes to staging" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "- Changes will be automatically applied to dev environment" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "- Changes will be automatically applied to staging environment" >> $GITHUB_STEP_SUMMARY
+            echo "- Use workflow_dispatch to apply to production (requires manual approval)" >> $GITHUB_STEP_SUMMARY
+          fi

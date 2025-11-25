@@ -1,0 +1,256 @@
+---
+- name: Configure Asterisk for Voice Campaign System
+  hosts: asterisk
+  become: yes
+  vars_files:
+    - group_vars/asterisk.yml
+
+  tasks:
+    # ===== PJSIP Configuration (SIP Trunk) =====
+    - name: Configure PJSIP transport
+      blockinfile:
+        path: /etc/asterisk/pjsip.conf
+        block: |
+          [transport-udp]
+          type=transport
+          protocol=udp
+          bind=0.0.0.0:5060
+          external_media_address={{ ansible_default_ipv4.address }}
+          external_signaling_address={{ ansible_default_ipv4.address }}
+
+          [transport-tcp]
+          type=transport
+          protocol=tcp
+          bind=0.0.0.0:5060
+
+    - name: Configure SIP trunk endpoint
+      blockinfile:
+        path: /etc/asterisk/pjsip.conf
+        marker: "# {mark} SIP TRUNK CONFIGURATION"
+        block: |
+          ; Israeli SIP Trunk Configuration ({{ sip_trunk_provider }})
+          [{{ sip_trunk_provider }}-trunk]
+          type=endpoint
+          context={{ sip_trunk_context }}
+          disallow=all
+          allow=ulaw
+          allow=alaw
+          allow=g729
+          direct_media=no
+          trust_id_inbound=yes
+          from_user={{ sip_trunk_username }}
+          outbound_auth={{ sip_trunk_provider }}-auth
+          aors={{ sip_trunk_provider }}-aor
+
+          [{{ sip_trunk_provider }}-auth]
+          type=auth
+          auth_type=userpass
+          username={{ sip_trunk_username }}
+          password={{ sip_trunk_password }}
+
+          [{{ sip_trunk_provider }}-aor]
+          type=aor
+          contact=sip:{{ sip_trunk_host }}
+
+          [{{ sip_trunk_provider }}-identify]
+          type=identify
+          endpoint={{ sip_trunk_provider }}-trunk
+          match={{ sip_trunk_host }}
+
+    # ===== RTP Configuration =====
+    - name: Configure RTP ports
+      blockinfile:
+        path: /etc/asterisk/rtp.conf
+        block: |
+          [general]
+          rtpstart={{ rtp_start }}
+          rtpend={{ rtp_end }}
+          strictrtp=yes
+          icesupport=yes
+          stunaddr=stun.l.google.com:19302
+
+    # ===== AMI Configuration =====
+    - name: Configure Asterisk Manager Interface (AMI)
+      blockinfile:
+        path: /etc/asterisk/manager.conf
+        block: |
+          [general]
+          enabled = yes
+          port = {{ ami_port }}
+          bindaddr = 0.0.0.0
+
+          [{{ ami_username }}]
+          secret = {{ ami_password }}
+          deny=0.0.0.0/0.0.0.0
+          permit=127.0.0.1/255.255.255.255
+          permit=10.0.0.0/255.0.0.0
+          permit=172.16.0.0/255.240.0.0
+          permit=192.168.0.0/255.255.0.0
+          read = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan
+          write = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan,originate
+
+    # ===== ARI Configuration =====
+    - name: Configure Asterisk REST Interface (ARI)
+      blockinfile:
+        path: /etc/asterisk/ari.conf
+        block: |
+          [general]
+          enabled = yes
+          pretty = yes
+
+          [{{ ari_username }}]
+          type = user
+          read_only = no
+          password = {{ ari_password }}
+
+    - name: Configure HTTP server for ARI
+      blockinfile:
+        path: /etc/asterisk/http.conf
+        block: |
+          [general]
+          enabled=yes
+          bindaddr=0.0.0.0
+          bindport={{ ari_port }}
+          tlsenable=no
+          tlsbindaddr=0.0.0.0:8089
+          tlscertfile=/etc/asterisk/keys/asterisk.pem
+          tlsprivatekey=/etc/asterisk/keys/asterisk.key
+          enablestatic=yes
+          redirect = / /httpstatus
+
+    # ===== Dialplan Configuration =====
+    - name: Create IVR dialplan
+      copy:
+        dest: /etc/asterisk/extensions.conf
+        content: |
+          [general]
+          static=yes
+          writeprotect=no
+          clearglobalvars=no
+
+          [globals]
+          NODEJS_WORKER_URL=http://localhost:{{ nodejs_worker_port }}
+
+          ; ===== Incoming calls from SIP trunk =====
+          [{{ sip_trunk_context }}]
+          exten => _X.,1,NoOp(Incoming call from trunk: ${CALLERID(num)})
+           same => n,Answer()
+           same => n,Wait(1)
+           same => n,Goto(ivr-main,s,1)
+
+          ; ===== Main IVR Menu =====
+          [ivr-main]
+          exten => s,1,NoOp(Starting IVR for campaign ${CAMPAIGN_ID})
+           same => n,Set(TIMEOUT(digit)=5)
+           same => n,Set(TIMEOUT(response)=10)
+           same => n,Set(CALL_ID=${UNIQUEID})
+           same => n,Set(DTMF_INPUTS=)
+           ; Notify Node.js worker that call started
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-started,call_id=${CALL_ID}&phone=${CALLERID(num)}&campaign_id=${CAMPAIGN_ID})})
+           ; Play audio message from S3 or local file
+           same => n,Playback(${AUDIO_FILE})
+           same => n,Goto(ivr-wait-input,s,1)
+
+          ; ===== Wait for DTMF input =====
+          [ivr-wait-input]
+          exten => s,1,NoOp(Waiting for DTMF input)
+           same => n,Read(DTMF_INPUT,,1,,10,)
+           same => n,GotoIf($["${DTMF_INPUT}" = ""]?timeout)
+           same => n,Set(DTMF_INPUTS=${DTMF_INPUTS}${DTMF_INPUT})
+           same => n,Goto(process-dtmf,${DTMF_INPUT},1)
+           same => n(timeout),Goto(ivr-timeout,s,1)
+
+          ; ===== Process DTMF Input =====
+          [process-dtmf]
+          ; Press 1 - Donation/Transfer to agent
+          exten => 1,1,NoOp(User pressed 1 - Donation action)
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/dtmf-action,call_id=${CALL_ID}&dtmf=1&action=donation)})
+           same => n,Playback(thank-you-donation)
+           same => n,Hangup()
+
+          ; Press 2 - More information (example)
+          exten => 2,1,NoOp(User pressed 2 - More info)
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/dtmf-action,call_id=${CALL_ID}&dtmf=2&action=info)})
+           same => n,Playback(more-info)
+           same => n,Goto(ivr-wait-input,s,1)
+
+          ; Press 9 - Opt-out (add to blacklist)
+          exten => 9,1,NoOp(User pressed 9 - Opt-out)
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/dtmf-action,call_id=${CALL_ID}&dtmf=9&action=optout&phone=${CALLERID(num)})})
+           same => n,Playback(optout-confirmed)
+           same => n,Hangup()
+
+          ; Invalid input
+          exten => _X,1,NoOp(Invalid DTMF: ${EXTEN})
+           same => n,Playback(invalid-option)
+           same => n,Goto(ivr-wait-input,s,1)
+
+          ; ===== Timeout Handler =====
+          [ivr-timeout]
+          exten => s,1,NoOp(No DTMF input received - timeout)
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-timeout,call_id=${CALL_ID})})
+           same => n,Playback(goodbye)
+           same => n,Hangup()
+
+          ; ===== Outbound Call Context (for originating calls) =====
+          [outbound-campaign]
+          exten => _X.,1,NoOp(Outbound call to ${EXTEN})
+           same => n,Set(CALLERID(num)=${CAMPAIGN_CALLER_ID})
+           same => n,Set(CALL_ID=${UNIQUEID})
+           same => n,Dial(PJSIP/${EXTEN}@{{ sip_trunk_provider }}-trunk,30,g)
+           same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?answered:not-answered)
+           same => n(answered),Goto(ivr-main,s,1)
+           same => n(not-answered),NoOp(Call not answered: ${DIALSTATUS})
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-failed,call_id=${CALL_ID}&status=${DIALSTATUS})})
+           same => n,Hangup()
+
+          ; ===== Hangup Handler =====
+          [hangup-handler]
+          exten => h,1,NoOp(Call ended: ${CALL_ID})
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-ended,call_id=${CALL_ID}&duration=${CDR(duration)}&status=${DIALSTATUS})})
+           same => n,Return()
+        owner: asterisk
+        group: asterisk
+        mode: '0644'
+
+    # ===== Logging Configuration =====
+    - name: Configure Asterisk logging
+      copy:
+        dest: /etc/asterisk/logger.conf
+        content: |
+          [general]
+          dateformat=%F %T
+
+          [logfiles]
+          console => notice,warning,error
+          messages => notice,warning,error
+          full => notice,warning,error,debug,verbose
+
+          ; Send logs to CloudWatch via syslog
+          syslog.local0 => notice,warning,error
+        owner: asterisk
+        group: asterisk
+        mode: '0644'
+
+    # ===== Reload Asterisk Configuration =====
+    - name: Reload Asterisk configuration
+      command: asterisk -rx "core reload"
+      changed_when: false
+
+    - name: Verify PJSIP endpoints
+      command: asterisk -rx "pjsip show endpoints"
+      register: pjsip_endpoints
+      changed_when: false
+
+    - name: Display PJSIP endpoints
+      debug:
+        msg: "{{ pjsip_endpoints.stdout_lines }}"
+
+    - name: Verify AMI is enabled
+      command: asterisk -rx "manager show settings"
+      register: ami_settings
+      changed_when: false
+
+    - name: Display AMI settings
+      debug:
+        msg: "{{ ami_settings.stdout_lines }}"

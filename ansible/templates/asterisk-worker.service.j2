@@ -1,0 +1,32 @@
+[Unit]
+Description=Asterisk Node.js Worker - AMI/ARI Controller
+After=network.target asterisk.service
+Requires=asterisk.service
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory={{ nodejs_worker_dir }}
+ExecStart=/usr/bin/node {{ nodejs_worker_dir }}/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=asterisk-worker
+
+# Environment variables
+Environment="NODE_ENV=production"
+Environment="PORT={{ nodejs_worker_port }}"
+Environment="AMI_HOST=localhost"
+Environment="AMI_PORT={{ ami_port }}"
+Environment="AMI_USERNAME={{ ami_username }}"
+Environment="AMI_PASSWORD={{ ami_password }}"
+Environment="ARI_HOST=localhost"
+Environment="ARI_PORT={{ ari_port }}"
+Environment="ARI_USERNAME={{ ari_username }}"
+Environment="ARI_PASSWORD={{ ari_password }}"
+Environment="AWS_REGION={{ aws_region }}"
+Environment="S3_AUDIO_BUCKET={{ s3_audio_bucket }}"
+
+[Install]
+WantedBy=multi-user.target

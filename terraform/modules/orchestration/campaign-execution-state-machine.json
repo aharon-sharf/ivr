@@ -1,0 +1,250 @@
+{
+  "Comment": "Campaign Execution Workflow - Orchestrates campaign validation, contact dispatch, monitoring, and reporting",
+  "StartAt": "ValidateCampaign",
+  "States": {
+    "ValidateCampaign": {
+      "Type": "Task",
+      "Resource": "${validate_campaign_lambda_arn}",
+      "Comment": "Validates campaign configuration including time windows, IVR flow, and audio files",
+      "ResultPath": "$.validationResult",
+      "Next": "CheckValidation",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "CampaignFailed"
+        }
+      ],
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 30
+    },
+    "CheckValidation": {
+      "Type": "Choice",
+      "Comment": "Check if campaign validation passed",
+      "Choices": [
+        {
+          "Variable": "$.validationResult.valid",
+          "BooleanEquals": true,
+          "Next": "QueryEligibleContacts"
+        }
+      ],
+      "Default": "ValidationFailed"
+    },
+    "ValidationFailed": {
+      "Type": "Fail",
+      "Error": "CampaignValidationFailed",
+      "Cause": "Campaign configuration validation failed"
+    },
+    "QueryEligibleContacts": {
+      "Type": "Task",
+      "Resource": "${dispatcher_lambda_arn}",
+      "Comment": "Query PostgreSQL for eligible contacts and push to SQS queue",
+      "ResultPath": "$.dispatchResult",
+      "Next": "CheckContactsAvailable",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "CampaignFailed"
+        }
+      ],
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 300
+    },
+    "CheckContactsAvailable": {
+      "Type": "Choice",
+      "Comment": "Check if any contacts were dispatched",
+      "Choices": [
+        {
+          "Variable": "$.dispatchResult.contactCount",
+          "NumericGreaterThan": 0,
+          "Next": "MonitorProgress"
+        }
+      ],
+      "Default": "NoContactsToProcess"
+    },
+    "NoContactsToProcess": {
+      "Type": "Succeed",
+      "Comment": "Campaign completed with no contacts to process"
+    },
+    "MonitorProgress": {
+      "Type": "Wait",
+      "Comment": "Wait before checking campaign progress",
+      "Seconds": 60,
+      "Next": "CheckCampaignStatus"
+    },
+    "CheckCampaignStatus": {
+      "Type": "Task",
+      "Resource": "${status_checker_lambda_arn}",
+      "Comment": "Query campaign progress and calculate completion percentage",
+      "ResultPath": "$.statusResult",
+      "Next": "IsCampaignComplete",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "CampaignFailed"
+        }
+      ],
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 30
+    },
+    "IsCampaignComplete": {
+      "Type": "Choice",
+      "Comment": "Check if campaign has completed processing all contacts",
+      "Choices": [
+        {
+          "Variable": "$.statusResult.status",
+          "StringEquals": "completed",
+          "Next": "GenerateReport"
+        },
+        {
+          "Variable": "$.statusResult.status",
+          "StringEquals": "paused",
+          "Next": "CampaignPaused"
+        },
+        {
+          "Variable": "$.statusResult.status",
+          "StringEquals": "cancelled",
+          "Next": "CampaignCancelled"
+        }
+      ],
+      "Default": "CheckIfMoreContactsNeeded"
+    },
+    "CheckIfMoreContactsNeeded": {
+      "Type": "Choice",
+      "Comment": "Check if more contacts need to be dispatched",
+      "Choices": [
+        {
+          "Variable": "$.statusResult.needsMoreContacts",
+          "BooleanEquals": true,
+          "Next": "QueryEligibleContacts"
+        }
+      ],
+      "Default": "MonitorProgress"
+    },
+    "CampaignPaused": {
+      "Type": "Succeed",
+      "Comment": "Campaign was paused by user"
+    },
+    "CampaignCancelled": {
+      "Type": "Succeed",
+      "Comment": "Campaign was cancelled by user"
+    },
+    "GenerateReport": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Generate comprehensive campaign report",
+      "Parameters": {
+        "FunctionName": "${report_generator_lambda_arn}",
+        "Payload": {
+          "campaignId.$": "$.campaignId",
+          "executionId.$": "$$.Execution.Id"
+        }
+      },
+      "ResultPath": "$.reportResult",
+      "Next": "NotifyUser",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "ReportGenerationFailed"
+        }
+      ],
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 120
+    },
+    "ReportGenerationFailed": {
+      "Type": "Pass",
+      "Comment": "Report generation failed but campaign completed successfully",
+      "Result": {
+        "reportStatus": "failed",
+        "message": "Campaign completed but report generation failed"
+      },
+      "ResultPath": "$.reportResult",
+      "Next": "NotifyUser"
+    },
+    "NotifyUser": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Comment": "Send notification to user with campaign results",
+      "Parameters": {
+        "TopicArn": "${campaign_notifications_topic_arn}",
+        "Subject": "Campaign Execution Complete",
+        "Message": {
+          "campaignId.$": "$.campaignId",
+          "campaignName.$": "$.campaignName",
+          "status": "completed",
+          "totalContacts.$": "$.statusResult.totalContacts",
+          "completedContacts.$": "$.statusResult.completedContacts",
+          "reportUrl.$": "$.reportResult.Payload.reportUrl",
+          "executionId.$": "$$.Execution.Id"
+        }
+      },
+      "ResultPath": "$.notificationResult",
+      "Next": "CampaignCompleted",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.notificationError",
+          "Next": "CampaignCompleted"
+        }
+      ]
+    },
+    "CampaignCompleted": {
+      "Type": "Succeed",
+      "Comment": "Campaign execution completed successfully"
+    },
+    "CampaignFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Comment": "Notify user of campaign failure",
+      "Parameters": {
+        "TopicArn": "${campaign_notifications_topic_arn}",
+        "Subject": "Campaign Execution Failed",
+        "Message": {
+          "campaignId.$": "$.campaignId",
+          "campaignName.$": "$.campaignName",
+          "status": "failed",
+          "error.$": "$.error",
+          "executionId.$": "$$.Execution.Id"
+        }
+      },
+      "ResultPath": "$.notificationResult",
+      "Next": "FailState"
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Error": "CampaignExecutionFailed",
+      "Cause": "Campaign execution encountered an error"
+    }
+  }
+}

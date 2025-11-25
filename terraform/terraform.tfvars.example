@@ -1,0 +1,24 @@
+# Mass Voice Campaign System - Example Terraform Variables
+# Copy this file to terraform.tfvars and update with your values
+
+aws_region  = "il-central-1"
+environment = "dev"
+
+# Networking
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
+availability_zones   = ["il-central-1a", "il-central-1b"]
+
+# RDS PostgreSQL
+rds_instance_class    = "db.t3.medium"
+rds_allocated_storage = 100
+rds_multi_az          = true
+
+# ElastiCache Redis
+redis_node_type       = "cache.t3.medium"
+redis_num_cache_nodes = 2
+
+# Asterisk EC2
+asterisk_instance_type = "c5.large"
+asterisk_key_name      = "your-ssh-key-name"  # Replace with your SSH key name
