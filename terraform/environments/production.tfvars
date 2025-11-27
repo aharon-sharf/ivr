@@ -1,6 +1,6 @@
 # Production Environment Configuration
 
-environment  = "production"
+environment = "production"
 # project_name = "mass-voice-campaign"
 
 # Networking
@@ -8,16 +8,16 @@ vpc_cidr           = "10.2.0.0/16"
 availability_zones = ["il-central-1a", "il-central-1b", "il-central-1c"]
 
 # Compute
-asterisk_instance_type       = "c5.2xlarge"
+asterisk_instance_type = "c5.2xlarge"
 # enable_asterisk_auto_scaling = true
-asterisk_key_name            = "asterisk-deploy-key"
+asterisk_key_name = "asterisk-deploy-key"
 # asterisk_min_size            = 2
 # asterisk_max_size            = 10
 
 # Database
-rds_instance_class        = "db.r5.2xlarge"
-rds_allocated_storage     = 500
-rds_multi_az              = true
+rds_instance_class    = "db.r5.2xlarge"
+rds_allocated_storage = 500
+rds_multi_az          = true
 # rds_backup_retention_days = 30
 # enable_rds_read_replica   = true
 

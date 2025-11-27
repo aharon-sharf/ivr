@@ -1,6 +1,6 @@
 # Development Environment Configuration
 
-environment  = "dev"
+environment = "dev"
 # project_name = "mass-voice-campaign"
 
 # Networking
@@ -8,14 +8,14 @@ vpc_cidr           = "10.0.0.0/16"
 availability_zones = ["il-central-1a", "il-central-1b"]
 
 # Compute
-asterisk_instance_type       = "t3.micro"
+asterisk_instance_type = "t3.micro"
 # enable_asterisk_auto_scaling = false
-asterisk_key_name            = "asterisk-deploy-key"
+asterisk_key_name = "asterisk-deploy-key"
 
 # Database
-rds_instance_class        = "db.t3.micro"
-rds_allocated_storage     = 20
-rds_multi_az              = false
+rds_instance_class    = "db.t3.micro"
+rds_allocated_storage = 20
+rds_multi_az          = false
 # rds_backup_retention_days = 7
 
 # Cache
