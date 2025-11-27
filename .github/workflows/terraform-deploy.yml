@@ -357,8 +357,7 @@ jobs:
           terraform init \
             -backend-config="bucket=mass-voice-campaign-terraform-state-${{ github.event.inputs.environment }}" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true"
+            -backend-config="region=${{ env.AWS_REGION }}"
       
       - name: Select Terraform Workspace
         working-directory: terraform

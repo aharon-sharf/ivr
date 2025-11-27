@@ -10,10 +10,10 @@ output "rds_instance_id" {
   value       = aws_db_instance.postgres.id
 }
 
-output "rds_password_secret_arn" {
-  description = "ARN of the secret containing RDS password"
-  value       = aws_secretsmanager_secret.rds_password.arn
-}
+# output "rds_password_secret_arn" {
+#   description = "ARN of the secret containing RDS password"
+#   value       = aws_secretsmanager_secret.rds_password.arn
+# }
 
 output "redis_endpoint" {
   description = "ElastiCache Redis primary endpoint"

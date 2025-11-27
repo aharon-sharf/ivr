@@ -53,9 +53,10 @@ resource "aws_db_instance" "postgres" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  db_name  = "campaign_system"
-  username = "admin"
-  password = random_password.rds_password.result
+  db_name                     = "campaign_system"
+  username                    = "iadmin"
+  manage_master_user_password = true
+  # password = random_password.rds_password.result
 
   multi_az               = var.rds_multi_az
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -78,33 +79,33 @@ resource "aws_db_instance" "postgres" {
   )
 }
 
-# Random password for RDS
-resource "random_password" "rds_password" {
-  length  = 32
-  special = true
-}
-
-# Store RDS password in Secrets Manager
-resource "aws_secretsmanager_secret" "rds_password" {
-  name = "${var.project_name}-rds-password-${var.environment}"
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-rds-password-${var.environment}"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "rds_password" {
-  secret_id = aws_secretsmanager_secret.rds_password.id
-  secret_string = jsonencode({
-    username = aws_db_instance.postgres.username
-    password = random_password.rds_password.result
-    endpoint = aws_db_instance.postgres.endpoint
-    database = aws_db_instance.postgres.db_name
-  })
-}
+# # Random password for RDS
+# resource "random_password" "rds_password" {
+#   length  = 32
+#   special = true
+# }
+# 
+# # Store RDS password in Secrets Manager
+# resource "aws_secretsmanager_secret" "rds_password" {
+#   name = "${var.project_name}-rds-password-${var.environment}"
+# 
+#   tags = merge(
+#     var.tags,
+#     {
+#       Name = "${var.project_name}-rds-password-${var.environment}"
+#     }
+#   )
+# }
+# 
+# resource "aws_secretsmanager_secret_version" "rds_password" {
+#   secret_id = aws_secretsmanager_secret.rds_password.id
+#   secret_string = jsonencode({
+#     username = aws_db_instance.postgres.username
+#     password = random_password.rds_password.result
+#     endpoint = aws_db_instance.postgres.endpoint
+#     database = aws_db_instance.postgres.db_name
+#   })
+# }
 
 # Security Group for Redis
 resource "aws_security_group" "redis" {
