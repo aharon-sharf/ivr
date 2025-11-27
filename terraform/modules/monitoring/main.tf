@@ -926,7 +926,7 @@ resource "aws_cloudwatch_metric_alarm" "high_optout_rate" {
 
 # X-Ray Sampling Rule - Default rule for all Lambda functions
 resource "aws_xray_sampling_rule" "default" {
-  rule_name      = "${var.project_name}-${var.environment}-default-sampling"
+  rule_name      = "${var.environment}-default-sample"
   priority       = 1000
   version        = 1
   reservoir_size = 1
@@ -948,7 +948,7 @@ resource "aws_xray_sampling_rule" "default" {
 
 # X-Ray Sampling Rule - High priority for critical Lambda functions
 resource "aws_xray_sampling_rule" "critical_functions" {
-  rule_name      = "${var.project_name}-${var.environment}-critical-sampling"
+  rule_name      = "${var.environment}-critical-sample"
   priority       = 100
   version        = 1
   reservoir_size = 5
@@ -974,7 +974,7 @@ resource "aws_xray_sampling_rule" "critical_functions" {
 
 # X-Ray Sampling Rule - Error traces (100% sampling)
 resource "aws_xray_sampling_rule" "error_traces" {
-  rule_name      = "${var.project_name}-${var.environment}-error-sampling"
+  rule_name      = "${var.environment}-error-sample"
   priority       = 1
   version        = 1
   reservoir_size = 10
