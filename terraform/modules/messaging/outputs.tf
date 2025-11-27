@@ -55,13 +55,3 @@ output "sqs_queue_names" {
   description = "List of SQS queue names for monitoring"
   value       = [aws_sqs_queue.dial_tasks.name]
 }
-
-output "eventbridge_pipe_arn" {
-  description = "EventBridge Pipe ARN for dial tasks to dialer worker"
-  value       = aws_pipes_pipe.dial_tasks_to_dialer_worker.arn
-}
-
-output "eventbridge_pipe_name" {
-  description = "EventBridge Pipe name for dial tasks to dialer worker"
-  value       = aws_pipes_pipe.dial_tasks_to_dialer_worker.name
-}

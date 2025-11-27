@@ -960,9 +960,8 @@ resource "aws_xray_sampling_rule" "critical_functions" {
   service_name   = "${var.project_name}-${var.environment}-*"
   resource_arn   = "*"
 
-  attributes = {
-    FunctionName = "*dialer-worker*,*dispatcher*,*api-handler*"
-  }
+  # Note: Removed attributes due to 32-char limit on values
+  # Using service_name pattern matching instead
 
   tags = merge(
     var.tags,
@@ -996,7 +995,7 @@ resource "aws_xray_sampling_rule" "error_traces" {
 
 # X-Ray Group - Campaign Execution Traces
 resource "aws_xray_group" "campaign_execution" {
-  group_name        = "${var.project_name}-${var.environment}-campaign-execution"
+  group_name        = "${var.environment}-campaign-exec"
   filter_expression = "service(\"${var.project_name}-${var.environment}-dispatcher\") OR service(\"${var.project_name}-${var.environment}-dialer-worker\")"
 
   insights_configuration {
@@ -1007,14 +1006,14 @@ resource "aws_xray_group" "campaign_execution" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-campaign-execution"
+      Name = "${var.environment}-campaign-exec"
     }
   )
 }
 
 # X-Ray Group - API Request Traces
 resource "aws_xray_group" "api_requests" {
-  group_name        = "${var.project_name}-${var.environment}-api-requests"
+  group_name        = "${var.environment}-api-requests"
   filter_expression = "service(\"${var.project_name}-${var.environment}-api-handler\")"
 
   insights_configuration {
@@ -1025,14 +1024,14 @@ resource "aws_xray_group" "api_requests" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-api-requests"
+      Name = "${var.environment}-api-requests"
     }
   )
 }
 
 # X-Ray Group - Error Traces
 resource "aws_xray_group" "errors" {
-  group_name        = "${var.project_name}-${var.environment}-errors"
+  group_name        = "${var.environment}-errors"
   filter_expression = "error = true OR fault = true"
 
   insights_configuration {
@@ -1043,14 +1042,14 @@ resource "aws_xray_group" "errors" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-errors"
+      Name = "${var.environment}-errors"
     }
   )
 }
 
 # X-Ray Group - High Latency Traces
 resource "aws_xray_group" "high_latency" {
-  group_name        = "${var.project_name}-${var.environment}-high-latency"
+  group_name        = "${var.environment}-high-latency"
   filter_expression = "duration >= 5"
 
   insights_configuration {
@@ -1061,7 +1060,7 @@ resource "aws_xray_group" "high_latency" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-${var.environment}-high-latency"
+      Name = "${var.environment}-high-latency"
     }
   )
 }

@@ -203,8 +203,10 @@ resource "aws_vpc_endpoint" "lambda" {
   )
 }
 
-# Polly Interface Endpoint
+# Polly Interface Endpoint (not available in all regions like il-central-1)
 resource "aws_vpc_endpoint" "polly" {
+  count = contains(["il-central-1"], data.aws_region.current.name) ? 0 : 1
+
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.polly"
   vpc_endpoint_type   = "Interface"
@@ -220,8 +222,10 @@ resource "aws_vpc_endpoint" "polly" {
   )
 }
 
-# SageMaker Runtime Interface Endpoint
+# SageMaker Runtime Interface Endpoint (not available in all regions like il-central-1)
 resource "aws_vpc_endpoint" "sagemaker_runtime" {
+  count = contains(["il-central-1"], data.aws_region.current.name) ? 0 : 1
+
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.sagemaker.runtime"
   vpc_endpoint_type   = "Interface"

@@ -93,109 +93,28 @@ resource "aws_sns_topic" "alarms" {
   )
 }
 
-# IAM Role for EventBridge Pipes
-resource "aws_iam_role" "eventbridge_pipe_role" {
-  name = "${var.project_name}-eventbridge-pipe-role-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "pipes.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-eventbridge-pipe-role-${var.environment}"
-    }
-  )
-}
-
-# IAM Policy for EventBridge Pipes to read from SQS
-resource "aws_iam_role_policy" "eventbridge_pipe_sqs_policy" {
-  name = "${var.project_name}-eventbridge-pipe-sqs-policy-${var.environment}"
-  role = aws_iam_role.eventbridge_pipe_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ]
-        Resource = aws_sqs_queue.dial_tasks.arn
-      }
-    ]
-  })
-}
-
-# IAM Policy for EventBridge Pipes to invoke Lambda functions
-resource "aws_iam_role_policy" "eventbridge_pipe_lambda_policy" {
-  name = "${var.project_name}-eventbridge-pipe-lambda-policy-${var.environment}"
-  role = aws_iam_role.eventbridge_pipe_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction"
-        ]
-        Resource = [
-          var.enrich_dial_task_lambda_arn,
-          var.dialer_worker_lambda_arn
-        ]
-      }
-    ]
-  })
-}
-
-# EventBridge Pipe: SQS dial-tasks to Dialer Worker Lambda
-resource "aws_pipes_pipe" "dial_tasks_to_dialer_worker" {
-  name     = "${var.project_name}-dial-tasks-to-dialer-worker-${var.environment}"
-  role_arn = aws_iam_role.eventbridge_pipe_role.arn
-
-  source = aws_sqs_queue.dial_tasks.arn
-  target = var.dialer_worker_lambda_arn
-
-  source_parameters {
-    sqs_queue_parameters {
-      batch_size                         = 10
-      maximum_batching_window_in_seconds = 5
-    }
-
-    filter_criteria {
-      filter {
-        pattern = jsonencode({
-          phoneNumber = [{ exists = true }]
-        })
-      }
-    }
-  }
-
-  enrichment = var.enrich_dial_task_lambda_arn
-
-  target_parameters {
-    lambda_function_parameters {
-      invocation_type = "REQUEST_RESPONSE"
-    }
-  }
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-dial-tasks-to-dialer-worker-${var.environment}"
-    }
-  )
-}
+# Note: Lambda Event Source Mapping will be created when actual Lambda functions are implemented
+# This is a placeholder comment to document the alternative approach to EventBridge Pipes
+# 
+# When Lambda functions are created, add:
+# 1. aws_lambda_event_source_mapping resource connecting SQS to Lambda
+# 2. IAM policies for Lambda to read from SQS
+# 3. IAM policies for Lambda to invoke enrichment function
+#
+# Example configuration:
+# resource "aws_lambda_event_source_mapping" "dial_tasks_to_dialer_worker" {
+#   event_source_arn = aws_sqs_queue.dial_tasks.arn
+#   function_name    = var.dialer_worker_lambda_arn
+#   batch_size       = 10
+#   maximum_batching_window_in_seconds = 5
+#   filter_criteria {
+#     filter {
+#       pattern = jsonencode({
+#         body = {
+#           phoneNumber = [{ exists = true }]
+#         }
+#       })
+#     }
+#   }
+#   function_response_types = ["ReportBatchItemFailures"]
+# }
