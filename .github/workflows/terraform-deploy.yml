@@ -193,7 +193,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: tfplan-dev
           path: terraform/
@@ -245,7 +245,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: tfplan-staging
           path: terraform/
@@ -296,7 +296,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: tfplan-production
           path: terraform/
