@@ -82,11 +82,11 @@ resource "aws_sfn_state_machine" "campaign_execution" {
   role_arn = aws_iam_role.step_functions_role.arn
 
   definition = templatefile("${path.module}/campaign-execution-state-machine.json", {
-    validate_campaign_lambda_arn       = var.validate_campaign_lambda_arn
-    dispatcher_lambda_arn              = var.dispatcher_lambda_arn
-    status_checker_lambda_arn          = var.status_checker_lambda_arn
-    report_generator_lambda_arn        = var.report_generator_lambda_arn
-    campaign_notifications_topic_arn   = var.campaign_notifications_topic_arn
+    validate_campaign_lambda_arn     = var.validate_campaign_lambda_arn
+    dispatcher_lambda_arn            = var.dispatcher_lambda_arn
+    status_checker_lambda_arn        = var.status_checker_lambda_arn
+    report_generator_lambda_arn      = var.report_generator_lambda_arn
+    campaign_notifications_topic_arn = var.campaign_notifications_topic_arn
   })
 
   logging_configuration {
