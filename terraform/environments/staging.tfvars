@@ -30,6 +30,9 @@ redis_num_cache_nodes = 2
 # }
 
 # SageMaker
+# Set to true after uploading model artifact to S3
+# See terraform/ML_MODULE_SETUP.md for instructions
+enable_ml_module = false
 # sagemaker_serverless_memory_size     = 2048
 # sagemaker_serverless_max_concurrency = 100
 

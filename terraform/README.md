@@ -390,6 +390,69 @@ Verify you're in the correct workspace:
 
 Returns exit code 0 if correct, 1 if wrong (useful in CI/CD).
 
+## ML Module Setup (Optional)
+
+The ML module (SageMaker Serverless Inference) is **disabled by default** to allow infrastructure deployment without requiring a trained model artifact.
+
+### Why is it disabled?
+
+SageMaker requires a model artifact (`.tar.gz` file) to exist in S3 before creating the endpoint. If you try to deploy without the model, Terraform will fail with:
+
+```
+Error: Could not find model data at s3://bucket/models/optimal-call-time/model.tar.gz
+```
+
+### How to enable the ML module
+
+**Step 1: Create a placeholder model**
+
+```bash
+cd terraform/modules/ml/sample-model
+
+# Install dependencies
+pip install scikit-learn numpy
+
+# Generate model artifact
+python create_placeholder_model.py
+```
+
+This creates `model.tar.gz` with a simple Random Forest model for testing.
+
+**Step 2: Upload to S3**
+
+```bash
+# Get your ML models bucket name from Terraform outputs
+terraform output ml_models_bucket
+
+# Upload the model artifact
+aws s3 cp model.tar.gz s3://YOUR-ML-MODELS-BUCKET/models/optimal-call-time/model.tar.gz
+```
+
+**Step 3: Enable the ML module**
+
+Edit your `terraform.tfvars` or environment-specific `.tfvars` file:
+
+```hcl
+enable_ml_module = true
+```
+
+**Step 4: Apply changes**
+
+```bash
+terraform apply -var-file=environments/dev.tfvars
+```
+
+### Using a real trained model
+
+For production, replace the placeholder model with a real trained model:
+
+1. Train your model using historical call data
+2. Package as `model.tar.gz` (see `modules/ml/README.md` for format)
+3. Upload to S3
+4. Update the endpoint (Terraform will detect changes)
+
+See `terraform/modules/ml/README.md` for detailed instructions on model format, training, and deployment.
+
 ## Next Steps
 
 After infrastructure is provisioned:
@@ -398,6 +461,7 @@ After infrastructure is provisioned:
 2. **Lambda Deployment**: Deploy Lambda function code (task 3.x)
 3. **Asterisk Configuration**: Run Ansible playbooks (task 7.x)
 4. **Frontend Deployment**: Deploy React app to S3 (task 11.x)
+5. **ML Setup** (optional): Follow ML Module Setup section above
 
 ## Support
 

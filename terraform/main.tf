@@ -169,8 +169,10 @@ module "auth" {
   tags = local.common_tags
 }
 
-# ML Module (SageMaker)
+# ML Module (SageMaker) - Optional
+# Set enable_ml_module = true in terraform.tfvars after uploading model artifact to S3
 module "ml" {
+  count  = var.enable_ml_module ? 1 : 0
   source = "./modules/ml"
 
   project_name = local.project_name

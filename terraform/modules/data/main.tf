@@ -193,6 +193,8 @@ resource "random_password" "redis_auth_token" {
 resource "aws_secretsmanager_secret" "redis_auth_token" {
   name = "${var.project_name}-redis-auth-token-${var.environment}"
 
+  recovery_window_in_days = 0
+
   tags = merge(
     var.tags,
     {

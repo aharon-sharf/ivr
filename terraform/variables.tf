@@ -81,6 +81,13 @@ variable "asterisk_key_name" {
   type        = string
 }
 
+# ML Module Feature Flag
+variable "enable_ml_module" {
+  description = "Enable ML module (SageMaker). Set to false if model artifact is not yet uploaded to S3."
+  type        = bool
+  default     = false
+}
+
 # SageMaker Variables
 variable "sagemaker_container_image" {
   description = "SageMaker container image URI for model inference"

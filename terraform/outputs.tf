@@ -98,20 +98,20 @@ output "cognito_app_client_id" {
   value       = module.auth.app_client_id
 }
 
-# ML Outputs
+# ML Outputs (only available when enable_ml_module = true)
 output "sagemaker_endpoint_name" {
   description = "SageMaker Serverless Inference endpoint name"
-  value       = module.ml.endpoint_name
+  value       = var.enable_ml_module ? module.ml[0].endpoint_name : "ML module disabled"
 }
 
 output "sagemaker_endpoint_arn" {
   description = "SageMaker Serverless Inference endpoint ARN"
-  value       = module.ml.endpoint_arn
+  value       = var.enable_ml_module ? module.ml[0].endpoint_arn : "ML module disabled"
 }
 
 output "lambda_sagemaker_invoke_role_arn" {
   description = "IAM role ARN for Lambda to invoke SageMaker endpoint"
-  value       = module.ml.lambda_sagemaker_invoke_role_arn
+  value       = var.enable_ml_module ? module.ml[0].lambda_sagemaker_invoke_role_arn : "ML module disabled"
 }
 
 # Monitoring Outputs

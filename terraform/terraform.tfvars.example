@@ -22,3 +22,8 @@ redis_num_cache_nodes = 2
 # Asterisk EC2
 asterisk_instance_type = "c5.large"
 asterisk_key_name      = "your-ssh-key-name"  # Replace with your SSH key name
+
+# ML Module (SageMaker)
+# Set to true after uploading model artifact to S3
+# See terraform/modules/ml/README.md for setup instructions
+enable_ml_module = false
