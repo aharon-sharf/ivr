@@ -42,6 +42,7 @@ locals {
   common_tags = {
     Project     = "MassVoiceCampaign"
     Environment = var.environment
+    ManagedBy   = "Terraform"
   }
 }
 

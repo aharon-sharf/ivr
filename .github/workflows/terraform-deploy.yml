@@ -202,10 +202,9 @@ jobs:
         working-directory: terraform
         run: |
           terraform init \
-            -backend-config="bucket=mass-voice-campaign-terraform-state-dev" \
+            -backend-config="bucket=mass-voice-campaign-terraform-state" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true"
+            -backend-config="region=${{ env.AWS_REGION }}"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -255,10 +254,9 @@ jobs:
         working-directory: terraform
         run: |
           terraform init \
-            -backend-config="bucket=mass-voice-campaign-terraform-state-staging" \
+            -backend-config="bucket=mass-voice-campaign-terraform-state" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true"
+            -backend-config="region=${{ env.AWS_REGION }}"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -307,10 +305,9 @@ jobs:
         working-directory: terraform
         run: |
           terraform init \
-            -backend-config="bucket=mass-voice-campaign-terraform-state-production" \
+            -backend-config="bucket=mass-voice-campaign-terraform-state" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true"
+            -backend-config="region=${{ env.AWS_REGION }}"
       
       - name: Select Terraform Workspace
         working-directory: terraform
