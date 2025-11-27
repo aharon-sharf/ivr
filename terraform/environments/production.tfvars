@@ -10,6 +10,7 @@ availability_zones = ["il-central-1a", "il-central-1b", "il-central-1c"]
 # Compute
 asterisk_instance_type       = "c5.2xlarge"
 enable_asterisk_auto_scaling = true
+asterisk_key_name = "asterisk-deploy-key"
 asterisk_min_size            = 2
 asterisk_max_size            = 10
 
