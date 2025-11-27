@@ -15,7 +15,7 @@ This implementation plan breaks down the Mass Voice Campaign System into discret
 
 
   - Create Terraform modules for networking, compute, data, messaging, orchestration
-  - Configure remote state backend (S3 + DynamoDB)
+  - Configure remote state backend (S3 with native locking)
   - Set up AWS credentials and region configuration
   - _Requirements: 12.1, 13.2_
 

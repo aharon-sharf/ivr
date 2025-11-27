@@ -22,7 +22,7 @@ cd terraform
 
 ### Step 2: Set Up Remote State Backend
 
-Run the backend setup script to create the S3 bucket and DynamoDB table for Terraform state:
+Run the backend setup script to create the S3 bucket for Terraform state with native locking:
 
 ```bash
 chmod +x backend-setup.sh
@@ -261,8 +261,8 @@ Type `yes` to confirm.
 # Verify S3 bucket exists
 aws s3 ls s3://mass-voice-campaign-terraform-state
 
-# Verify DynamoDB table exists
-aws dynamodb describe-table --table-name mass-voice-campaign-terraform-locks
+# Verify S3 bucket has versioning enabled (for state locking)
+aws s3api get-bucket-versioning --bucket mass-voice-campaign-terraform-state
 ```
 
 ### Issue: SSH key not found
@@ -304,10 +304,10 @@ aws rds describe-db-instances
 # Check if another Terraform process is running
 ps aux | grep terraform
 
-# If no other process, manually remove lock
-aws dynamodb delete-item \
-  --table-name mass-voice-campaign-terraform-locks \
-  --key '{"LockID":{"S":"mass-voice-campaign-terraform-state/infrastructure/terraform.tfstate"}}'
+# If no other process, manually remove lock file from S3
+# Note: With S3 native locking, the lock file is stored in the S3 bucket
+# Wait 20 seconds for automatic lock expiration, or remove manually:
+aws s3 rm s3://mass-voice-campaign-terraform-state/.terraform.lock
 ```
 
 ## Cost Management

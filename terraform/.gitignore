@@ -15,6 +15,10 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
+# EXCEPT environment configuration files (these are safe to commit)
+!environments/*.tfvars
+!terraform.tfvars.example
+
 # Ignore override files as they are usually used to override resources locally
 override.tf
 override.tf.json

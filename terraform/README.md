@@ -24,7 +24,7 @@ The infrastructure follows a hybrid serverless architecture:
 
 ### 1. Set up Remote State Backend
 
-Before running Terraform for the first time, set up the S3 bucket and DynamoDB table for remote state:
+Before running Terraform for the first time, set up the S3 bucket for remote state:
 
 ```bash
 cd terraform
@@ -34,7 +34,8 @@ chmod +x backend-setup.sh
 
 This script creates:
 - S3 bucket: `mass-voice-campaign-terraform-state`
-- DynamoDB table: `mass-voice-campaign-terraform-locks`
+- Enables S3 native state locking (no DynamoDB required)
+- Single bucket shared by all environments (dev/staging/production)
 
 ### 2. Configure Variables
 
@@ -59,35 +60,121 @@ This will:
 - Configure the remote state backend
 - Initialize modules
 
+### 4. Create Workspaces for Each Environment
+
+Terraform workspaces allow you to manage multiple environments (dev/staging/production) with the same configuration:
+
+```bash
+# Create workspaces
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new production
+
+# List all workspaces
+terraform workspace list
+
+# Switch to a workspace
+terraform workspace select dev
+```
+
+**How workspaces work:**
+- Each workspace maintains its own state file in the S3 bucket
+- State files are stored as: `env:/WORKSPACE_NAME/terraform.tfstate`
+- Example: `env:/dev/terraform.tfstate`, `env:/production/terraform.tfstate`
+- Resources are completely isolated between workspaces
+- You can have dev, staging, and production running simultaneously
+
 ## Deployment
 
-### Plan Changes
+### Option 1: Using Helper Scripts (Recommended)
+
+We provide helper scripts to make deployment safer and easier:
+
+```bash
+# Make scripts executable
+chmod +x deploy.sh check-workspace.sh
+
+# Deploy to dev
+./deploy.sh dev plan      # Preview changes
+./deploy.sh dev apply     # Apply changes
+
+# Deploy to staging
+./deploy.sh staging plan
+./deploy.sh staging apply
+
+# Deploy to production (requires confirmation)
+./deploy.sh production plan
+./deploy.sh production apply
+
+# Destroy environment
+./deploy.sh dev destroy
+```
+
+The `deploy.sh` script will:
+- ✅ Verify you're in the correct workspace
+- ✅ Automatically switch workspaces if needed
+- ✅ Use the correct `.tfvars` file
+- ✅ Require extra confirmation for production
+- ✅ Show clear status messages
+
+### Option 2: Manual Deployment
+
+If you prefer manual control:
+
+#### Working with Environments
+
+Always ensure you're in the correct workspace before making changes:
+
+```bash
+# Check current workspace
+terraform workspace show
+
+# Or use the helper script
+./check-workspace.sh dev
+
+# Switch to desired environment
+terraform workspace select dev    # or staging, or production
+```
+
+#### Plan Changes
 
 Review the infrastructure changes before applying:
 
 ```bash
-terraform plan
+# Make sure you're in the right workspace!
+terraform workspace select dev
+
+# Plan changes
+terraform plan -var-file=environments/dev.tfvars
 ```
 
-### Apply Changes
+#### Apply Changes
 
 Deploy the infrastructure:
 
 ```bash
-terraform apply
+# Make sure you're in the right workspace!
+terraform workspace select dev
+
+# Apply changes
+terraform apply -var-file=environments/dev.tfvars
 ```
 
 Review the plan and type `yes` to confirm.
 
-### Destroy Infrastructure
+#### Destroy Infrastructure
 
-To tear down all infrastructure:
+To tear down all infrastructure for a specific environment:
 
 ```bash
-terraform destroy
+# Make sure you're in the right workspace!
+terraform workspace select dev
+
+# Destroy
+terraform destroy -var-file=environments/dev.tfvars
 ```
 
-**Warning**: This will delete all resources. Use with caution in production.
+**Warning**: This will delete all resources in the selected workspace. Use with caution in production.
 
 ## Module Structure
 
@@ -168,14 +255,83 @@ Key outputs:
 - `cognito_user_pool_id`: Cognito User Pool ID
 - S3 bucket names
 
+## Best Practices for Workspaces
+
+### 1. Always Check Your Workspace
+
+Before running any Terraform command, verify you're in the correct workspace:
+
+```bash
+# Show current workspace (will be highlighted with *)
+terraform workspace list
+
+# Or just show current
+terraform workspace show
+```
+
+### 2. Use Environment-Specific Variable Files
+
+Create separate `.tfvars` files for each environment:
+
+```bash
+terraform/
+└── environments/
+    ├── dev.tfvars
+    ├── staging.tfvars
+    └── production.tfvars
+```
+
+Always specify the correct file:
+
+```bash
+terraform apply -var-file=environments/dev.tfvars
+```
+
+### 3. Naming Convention
+
+Use workspace name in resource names to avoid confusion:
+
+```hcl
+resource "aws_instance" "asterisk" {
+  tags = {
+    Name        = "asterisk-${terraform.workspace}"
+    Environment = terraform.workspace
+  }
+}
+```
+
+This creates: `asterisk-dev`, `asterisk-staging`, `asterisk-production`
+
+### 4. Workspace-Specific Configuration
+
+Use conditional logic for environment-specific settings:
+
+```hcl
+locals {
+  instance_type = terraform.workspace == "production" ? "c5.xlarge" : "t3.medium"
+  multi_az      = terraform.workspace == "production" ? true : false
+}
+```
+
+### 5. State File Backup
+
+The S3 bucket has versioning enabled, so you can recover previous state versions:
+
+```bash
+# List state file versions
+aws s3api list-object-versions \
+  --bucket mass-voice-campaign-terraform-state \
+  --prefix env:/dev/terraform.tfstate
+```
+
 ## Troubleshooting
 
 ### Backend Initialization Fails
 
 If `terraform init` fails with backend errors:
 1. Ensure `backend-setup.sh` ran successfully
-2. Check AWS credentials have permissions for S3 and DynamoDB
-3. Verify bucket and table names match in `main.tf`
+2. Check AWS credentials have permissions for S3
+3. Verify bucket name matches in `main.tf`
 
 ### Resource Creation Fails
 
@@ -188,8 +344,51 @@ If resources fail to create:
 
 If you see "Error acquiring the state lock":
 1. Another Terraform process may be running
-2. Check DynamoDB table for stuck locks
-3. Manually remove lock if confirmed no other process is running
+2. Check S3 bucket for `.terraform.lock` file
+3. Wait for the lock to expire (typically 20 seconds) or manually remove the lock file if confirmed no other process is running
+
+## Helper Scripts
+
+### backend-setup.sh
+
+Creates the S3 bucket for Terraform state (run once):
+
+```bash
+./backend-setup.sh
+```
+
+### deploy.sh
+
+Simplified deployment with safety checks:
+
+```bash
+./deploy.sh <environment> <action>
+
+# Examples:
+./deploy.sh dev plan
+./deploy.sh staging apply
+./deploy.sh production destroy
+```
+
+Features:
+- Automatic workspace switching
+- Correct `.tfvars` file selection
+- Production confirmation prompts
+- Clear status messages
+
+### check-workspace.sh
+
+Verify you're in the correct workspace:
+
+```bash
+# Show current workspace
+./check-workspace.sh
+
+# Verify specific workspace
+./check-workspace.sh dev
+```
+
+Returns exit code 0 if correct, 1 if wrong (useful in CI/CD).
 
 ## Next Steps
 

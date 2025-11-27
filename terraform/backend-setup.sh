@@ -1,15 +1,19 @@
 #!/bin/bash
-# Script to set up Terraform remote state backend (S3 + DynamoDB)
+# Script to set up Terraform remote state backend (S3 with native locking)
 # Run this script once before running terraform init
+# This script creates a single S3 bucket that will be used by all environments (dev/staging/production)
+# Terraform workspaces will be used to separate state files within the same bucket
 
 set -e
 
 # Configuration
 BUCKET_NAME="mass-voice-campaign-terraform-state"
-DYNAMODB_TABLE="mass-voice-campaign-terraform-locks"
 REGION="il-central-1"
 
 echo "Setting up Terraform remote state backend..."
+echo "Note: This creates a single S3 bucket for all environments."
+echo "Terraform workspaces will separate state files within this bucket."
+echo ""
 
 # Create S3 bucket for Terraform state
 echo "Creating S3 bucket: $BUCKET_NAME"
@@ -53,5 +57,16 @@ echo "✅ Terraform backend setup complete!"
 echo ""
 echo "S3 Bucket: $BUCKET_NAME"
 echo "Region: $REGION"
+echo "Locking: S3 native locking (use_lockfile = true)"
 echo ""
-echo "You can now run: terraform init"
+echo "Note: This configuration uses S3's native state locking feature."
+echo "DynamoDB is no longer required for state locking."
+echo ""
+echo "Next steps:"
+echo "1. Run: terraform init"
+echo "2. Create workspaces for each environment:"
+echo "   terraform workspace new dev"
+echo "   terraform workspace new staging"
+echo "   terraform workspace new production"
+echo "3. Switch between workspaces:"
+echo "   terraform workspace select dev"

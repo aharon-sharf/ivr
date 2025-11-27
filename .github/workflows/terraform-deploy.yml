@@ -101,7 +101,7 @@ jobs:
             -backend-config="bucket=mass-voice-campaign-terraform-state-${{ matrix.environment }}" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-${{ matrix.environment }}"
+            -backend-config="use_lockfile=true"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -205,7 +205,7 @@ jobs:
             -backend-config="bucket=mass-voice-campaign-terraform-state-dev" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-dev"
+            -backend-config="use_lockfile=true"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -258,7 +258,7 @@ jobs:
             -backend-config="bucket=mass-voice-campaign-terraform-state-staging" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-staging"
+            -backend-config="use_lockfile=true"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -310,7 +310,7 @@ jobs:
             -backend-config="bucket=mass-voice-campaign-terraform-state-production" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-production"
+            -backend-config="use_lockfile=true"
       
       - name: Select Terraform Workspace
         working-directory: terraform
@@ -361,7 +361,7 @@ jobs:
             -backend-config="bucket=mass-voice-campaign-terraform-state-${{ github.event.inputs.environment }}" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="dynamodb_table=mass-voice-campaign-terraform-locks-${{ github.event.inputs.environment }}"
+            -backend-config="use_lockfile=true"
       
       - name: Select Terraform Workspace
         working-directory: terraform

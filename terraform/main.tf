@@ -12,9 +12,11 @@ terraform {
   }
 
   # Remote state backend configuration
+  # Note: Terraform workspaces automatically append workspace name to the key
+  # State files will be stored as: env:/WORKSPACE_NAME/terraform.tfstate
   backend "s3" {
     bucket       = "mass-voice-campaign-terraform-state"
-    key          = "infrastructure/terraform.tfstate"
+    key          = "terraform.tfstate"
     region       = "il-central-1"
     use_lockfile = true
     encrypt      = true

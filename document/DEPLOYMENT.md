@@ -2,6 +2,8 @@
 
 This guide covers the complete deployment process for the Mass Voice Campaign System.
 
+> **Note**: This project uses Terraform workspaces to manage multiple environments. See [Terraform Workspaces Guide](TERRAFORM_WORKSPACE_GUIDE.md) for details.
+
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
@@ -67,15 +69,24 @@ Initialize Terraform state storage:
 
 ```bash
 cd terraform
-./backend-setup.sh dev
-./backend-setup.sh staging
-./backend-setup.sh production
+
+# Create shared S3 bucket for all environments
+./backend-setup.sh
+
+# Initialize Terraform
+terraform init
+
+# Create workspaces for each environment
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new production
 ```
 
 This creates:
-- S3 bucket for Terraform state
-- DynamoDB table for state locking
+- Single S3 bucket for Terraform state (shared by all environments)
+- S3 native state locking (no DynamoDB required)
 - Proper encryption and versioning
+- Separate workspaces for dev/staging/production
 
 ### 2. Infrastructure Deployment
 
@@ -475,12 +486,13 @@ gh workflow run terraform-deploy.yml -f environment=production -f action=apply
 
 **Solution:**
 ```bash
-# Check lock in DynamoDB
-aws dynamodb get-item \
-  --table-name mass-voice-campaign-terraform-locks-production \
-  --key '{"LockID": {"S": "mass-voice-campaign-terraform-state-production/terraform.tfstate"}}'
+# With S3 native locking, wait 20 seconds for automatic expiration
+# Or check for lock file in S3:
+aws s3 ls s3://mass-voice-campaign-terraform-state/env:/production/.terraform.lock
 
 # Force unlock (use with caution!)
+# First, make sure you're in the correct workspace
+terraform workspace select production
 terraform force-unlock LOCK_ID
 ```
 

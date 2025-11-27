@@ -338,7 +338,7 @@ Error: Unable to assume role
 ```
 Error: Error acquiring the state lock
 ```
-**Solution:** Manually release lock in DynamoDB table or wait for timeout
+**Solution:** Wait for S3 lock to expire (20 seconds) or use `terraform force-unlock`
 
 **3. ECR Push Failed**
 ```

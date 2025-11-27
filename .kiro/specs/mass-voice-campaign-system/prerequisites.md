@@ -242,7 +242,8 @@ Once you have all prerequisites installed and verified:
 - Ensure Access Key ID and Secret Access Key are correct
 
 **Terraform State Locking**
-- Create DynamoDB table for state locking: `terraform-state-lock`
+- S3 native state locking is used (no DynamoDB required)
+- Configured with `use_lockfile = true` in backend configuration
 - Prevents concurrent Terraform runs
 
 **Node.js Version**
