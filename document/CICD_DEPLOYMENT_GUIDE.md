@@ -162,6 +162,7 @@ aws iam attach-role-policy \
   --policy-arn arn:aws:iam::aws:policy/PowerUserAccess
 
 # For production, create a more restrictive custom policy
+# admin policy  : arn:aws:iam::aws:policy/AdministratorAccess
 # See: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_create.html
 ```
 
