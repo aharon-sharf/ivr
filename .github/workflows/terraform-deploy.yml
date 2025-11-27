@@ -98,7 +98,7 @@ jobs:
         working-directory: terraform
         run: |
           terraform init \
-            -backend-config="bucket=mass-voice-campaign-terraform-state-${{ matrix.environment }}" \
+            -backend-config="bucket=mass-voice-campaign-terraform-state \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}"
       
