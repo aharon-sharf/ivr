@@ -126,7 +126,7 @@ jobs:
       
       - name: Upload Plan Artifact
         if: steps.plan.outcome == 'success'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
           path: terraform/tfplan-${{ matrix.environment }}
