@@ -10,7 +10,7 @@ availability_zones = ["il-central-1a", "il-central-1b"]
 # Compute
 asterisk_instance_type       = "c5.xlarge"
 enable_asterisk_auto_scaling = false
-asterisk_key_name = "asterisk-deploy-key"
+asterisk_key_name            = "asterisk-deploy-key"
 
 # Database
 rds_instance_class        = "db.r5.large"
