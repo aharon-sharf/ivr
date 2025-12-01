@@ -14,7 +14,7 @@ asterisk_key_name = "asterisk-deploy-key"
 
 # Database
 rds_instance_class    = "db.t4g.medium"
-rds_allocated_storage = 20
+rds_allocated_storage = 30
 rds_multi_az          = false
 # rds_backup_retention_days = 14
 
