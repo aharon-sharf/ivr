@@ -219,7 +219,7 @@ resource "aws_db_proxy_default_target_group" "main" {
 
 # RDS Proxy Target
 resource "aws_db_proxy_target" "main" {
-  db_instance_identifier = aws_db_instance.postgres.id
+  db_instance_identifier = aws_db_instance.postgres.identifier
   db_proxy_name          = aws_db_proxy.main.name
   target_group_name      = aws_db_proxy_default_target_group.main.name
 }
