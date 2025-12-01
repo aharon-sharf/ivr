@@ -65,7 +65,7 @@ jobs:
         run: npm ci
       
       - name: Run property-based tests
-        run: npm run test -- tests/models tests/database
+        run: npm run test:unit
         env:
           CI: true
 
