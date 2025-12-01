@@ -113,7 +113,6 @@ export function isContactEligible(
 ): boolean {
   return (
     contact.status === 'pending' &&
-    contact.attempts < maxAttempts &&
-    contact.status !== 'blacklisted'
+    contact.attempts < maxAttempts
   );
 }
