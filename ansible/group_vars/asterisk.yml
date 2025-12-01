@@ -36,3 +36,16 @@ s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') }}"
 
 # Logging
 asterisk_log_level: "verbose,debug,notice,warning,error"
+
+# Redis Configuration (self-hosted on Asterisk server)
+redis_password: "{{ lookup('env', 'REDIS_PASSWORD') }}"
+redis_port: 6379
+redis_bind_address: "0.0.0.0"  # Bind to all interfaces (secured by security group)
+redis_maxmemory: "512mb"
+redis_maxmemory_policy: "allkeys-lru"
+redis_save_intervals:
+  - "900 1"    # Save after 900 seconds if at least 1 key changed
+  - "300 10"   # Save after 300 seconds if at least 10 keys changed
+  - "60 10000" # Save after 60 seconds if at least 10000 keys changed
+redis_appendonly: "yes"
+redis_appendfsync: "everysec"

@@ -64,3 +64,19 @@ output "lambda_function_names" {
   description = "List of Lambda function names for monitoring"
   value       = []
 }
+
+# Redis outputs (self-hosted on Asterisk server)
+output "redis_endpoint" {
+  description = "Redis endpoint (Asterisk server private IP)"
+  value       = aws_instance.asterisk.private_ip
+}
+
+output "redis_port" {
+  description = "Redis port"
+  value       = 6379
+}
+
+output "redis_password_secret_arn" {
+  description = "ARN of the secret containing Redis password"
+  value       = aws_secretsmanager_secret.redis_password.arn
+}

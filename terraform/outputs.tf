@@ -18,14 +18,37 @@ output "private_subnet_ids" {
 
 # Data Outputs
 output "rds_endpoint" {
-  description = "RDS PostgreSQL endpoint"
+  description = "RDS PostgreSQL direct endpoint (for admin use)"
   value       = module.data.rds_endpoint
   sensitive   = true
 }
 
+output "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint (use this for Lambda functions)"
+  value       = module.data.rds_proxy_endpoint
+  sensitive   = true
+}
+
+output "rds_master_secret_arn" {
+  description = "ARN of the secret containing RDS master password"
+  value       = module.data.rds_master_secret_arn
+  sensitive   = true
+}
+
 output "redis_endpoint" {
-  description = "ElastiCache Redis endpoint"
-  value       = module.data.redis_endpoint
+  description = "Redis endpoint (self-hosted on Asterisk server)"
+  value       = module.compute.redis_endpoint
+  sensitive   = true
+}
+
+output "redis_port" {
+  description = "Redis port"
+  value       = module.compute.redis_port
+}
+
+output "redis_password_secret_arn" {
+  description = "ARN of the secret containing Redis password"
+  value       = module.compute.redis_password_secret_arn
   sensitive   = true
 }
 

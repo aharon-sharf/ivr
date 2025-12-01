@@ -60,8 +60,8 @@ Enterprise-grade platform for managing and executing large-scale outbound voice 
 
 ### Backend
 - **Language**: TypeScript (Node.js)
-- **Database**: PostgreSQL (AWS RDS)
-- **Caching**: Redis (ElastiCache)
+- **Database**: PostgreSQL (AWS RDS with RDS Proxy for Lambda connection pooling)
+- **Caching**: Redis (self-hosted on Asterisk EC2)
 - **Message Queue**: AWS SQS
 - **Event Bus**: AWS SNS
 - **Compute**: AWS Lambda (serverless)

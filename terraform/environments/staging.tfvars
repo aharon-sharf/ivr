@@ -13,7 +13,7 @@ asterisk_instance_type = "c5.xlarge"
 asterisk_key_name = "asterisk-deploy-key"
 
 # Database
-rds_instance_class    = "db.r5.large"
+rds_instance_class    = "db.t4g.medium"
 rds_allocated_storage = 100
 rds_multi_az          = true
 # rds_backup_retention_days = 14

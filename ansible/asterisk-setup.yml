@@ -176,3 +176,71 @@
     - name: Show Asterisk version
       debug:
         msg: "{{ asterisk_version_output.stdout }}"
+
+    # Redis Installation and Configuration
+    - name: Install Redis
+      yum:
+        name: redis
+        state: present
+
+    - name: Create Redis configuration directory
+      file:
+        path: /etc/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+
+    - name: Configure Redis
+      template:
+        src: templates/redis.conf.j2
+        dest: /etc/redis/redis.conf
+        owner: redis
+        group: redis
+        mode: '0640'
+      notify: restart redis
+
+    - name: Create Redis data directory
+      file:
+        path: /var/lib/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0750'
+
+    - name: Create Redis log directory
+      file:
+        path: /var/log/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+
+    - name: Enable and start Redis service
+      systemd:
+        name: redis
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Redis to start
+      wait_for:
+        port: 6379
+        delay: 2
+        timeout: 30
+
+    - name: Test Redis connection
+      command: redis-cli -a "{{ redis_password }}" ping
+      register: redis_ping
+      changed_when: false
+      failed_when: redis_ping.stdout != "PONG"
+
+    - name: Display Redis status
+      debug:
+        msg: "Redis is running and responding to commands"
+
+  handlers:
+    - name: restart redis
+      systemd:
+        name: redis
+        state: restarted

@@ -127,7 +127,6 @@ module "compute" {
 
   # Database endpoints
   rds_endpoint   = module.data.rds_endpoint
-  redis_endpoint = module.data.redis_endpoint
 
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket

@@ -45,11 +45,6 @@ variable "rds_endpoint" {
   type        = string
 }
 
-variable "redis_endpoint" {
-  description = "Redis endpoint"
-  type        = string
-}
-
 variable "audio_files_bucket" {
   description = "Audio files S3 bucket name"
   type        = string

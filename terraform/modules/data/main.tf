@@ -1,4 +1,4 @@
-# Data Module - RDS PostgreSQL, ElastiCache Redis
+# Data Module - RDS PostgreSQL only (Redis moved to Asterisk server)
 
 # Security Group for RDS
 resource "aws_security_group" "rds" {
@@ -107,18 +107,22 @@ resource "aws_db_instance" "postgres" {
 #   })
 # }
 
-# Security Group for Redis
-resource "aws_security_group" "redis" {
-  name        = "${var.project_name}-redis-sg-${var.environment}"
-  description = "Security group for ElastiCache Redis"
+# NOTE: Redis has been moved to the Asterisk EC2 server to save costs
+# ElastiCache resources removed - see terraform/modules/compute/main.tf for Redis configuration
+
+# RDS Proxy for Lambda connection pooling
+# Security Group for RDS Proxy
+resource "aws_security_group" "rds_proxy" {
+  name        = "${var.project_name}-rds-proxy-sg-${var.environment}"
+  description = "Security group for RDS Proxy"
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port   = 6379
-    to_port     = 6379
+    from_port   = 5432
+    to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = [data.aws_vpc.main.cidr_block]
-    description = "Redis from VPC"
+    description = "PostgreSQL from VPC (Lambda functions)"
   }
 
   egress {
@@ -131,84 +135,93 @@ resource "aws_security_group" "redis" {
   tags = merge(
     var.tags,
     {
-      Name = "${var.project_name}-redis-sg-${var.environment}"
+      Name = "${var.project_name}-rds-proxy-sg-${var.environment}"
     }
   )
 }
 
-# ElastiCache Subnet Group
-resource "aws_elasticache_subnet_group" "main" {
-  name       = "${var.project_name}-redis-subnet-group-${var.environment}"
-  subnet_ids = var.private_subnet_ids
+# IAM Role for RDS Proxy
+resource "aws_iam_role" "rds_proxy" {
+  name = "${var.project_name}-rds-proxy-role-${var.environment}"
 
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-redis-subnet-group-${var.environment}"
-    }
-  )
-}
-
-# ElastiCache Redis Cluster
-resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id = "${var.project_name}-redis-${var.environment}"
-  description          = "Redis cluster for Mass Voice Campaign System"
-
-  engine               = "redis"
-  engine_version       = "7.0"
-  node_type            = var.redis_node_type
-  num_cache_clusters   = var.redis_num_cache_nodes
-  parameter_group_name = "default.redis7"
-  port                 = 6379
-
-  subnet_group_name  = aws_elasticache_subnet_group.main.name
-  security_group_ids = [aws_security_group.redis.id]
-
-  automatic_failover_enabled = var.redis_num_cache_nodes > 1
-  multi_az_enabled           = var.redis_num_cache_nodes > 1
-
-  at_rest_encryption_enabled = true
-  transit_encryption_enabled = true
-  auth_token                 = random_password.redis_auth_token.result
-
-  snapshot_retention_limit = 5
-  snapshot_window          = "03:00-05:00"
-  maintenance_window       = "mon:05:00-mon:07:00"
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-redis-${var.environment}"
-    }
-  )
-}
-
-# Random auth token for Redis
-resource "random_password" "redis_auth_token" {
-  length  = 32
-  special = false
-}
-
-# Store Redis auth token in Secrets Manager
-resource "aws_secretsmanager_secret" "redis_auth_token" {
-  name = "${var.project_name}-redis-auth-token-${var.environment}"
-
-  recovery_window_in_days = 0
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-redis-auth-token-${var.environment}"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "redis_auth_token" {
-  secret_id = aws_secretsmanager_secret.redis_auth_token.id
-  secret_string = jsonencode({
-    auth_token = random_password.redis_auth_token.result
-    endpoint   = aws_elasticache_replication_group.redis.primary_endpoint_address
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "rds.amazonaws.com"
+        }
+      }
+    ]
   })
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-rds-proxy-role-${var.environment}"
+    }
+  )
+}
+
+# IAM Policy for RDS Proxy to access Secrets Manager
+resource "aws_iam_role_policy" "rds_proxy_secrets" {
+  name = "${var.project_name}-rds-proxy-secrets-${var.environment}"
+  role = aws_iam_role.rds_proxy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_db_instance.postgres.master_user_secret[0].secret_arn
+      }
+    ]
+  })
+}
+
+# RDS Proxy
+resource "aws_db_proxy" "main" {
+  name                   = "${var.project_name}-postgres-proxy-${var.environment}"
+  engine_family          = "POSTGRESQL"
+  auth {
+    auth_scheme = "SECRETS"
+    iam_auth    = "DISABLED"
+    secret_arn  = aws_db_instance.postgres.master_user_secret[0].secret_arn
+  }
+
+  role_arn               = aws_iam_role.rds_proxy.arn
+  vpc_subnet_ids         = var.private_subnet_ids
+  require_tls            = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-postgres-proxy-${var.environment}"
+    }
+  )
+}
+
+# RDS Proxy Target Group
+resource "aws_db_proxy_default_target_group" "main" {
+  db_proxy_name = aws_db_proxy.main.name
+
+  connection_pool_config {
+    connection_borrow_timeout    = 120
+    max_connections_percent      = 100
+    max_idle_connections_percent = 50
+  }
+}
+
+# RDS Proxy Target
+resource "aws_db_proxy_target" "main" {
+  db_instance_identifier = aws_db_instance.postgres.id
+  db_proxy_name          = aws_db_proxy.main.name
+  target_group_name      = aws_db_proxy_default_target_group.main.name
 }
 
 # Data source for VPC

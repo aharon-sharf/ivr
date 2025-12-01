@@ -102,6 +102,15 @@ resource "aws_security_group" "asterisk" {
     description = "Asterisk REST Interface (ARI)"
   }
 
+  # Redis (self-hosted on Asterisk server)
+  ingress {
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Redis cache from VPC"
+  }
+
   # All outbound traffic
   egress {
     from_port   = 0
@@ -279,6 +288,9 @@ resource "aws_instance" "asterisk" {
               curl -sL https://rpm.nodesource.com/setup_18.x | bash -
               yum install -y nodejs
               
+              # Install Redis (will be configured by Ansible)
+              amazon-linux-extras install redis6 -y || yum install -y redis
+              
               # Create application directory
               mkdir -p /opt/asterisk-worker
               chown ec2-user:ec2-user /opt/asterisk-worker
@@ -321,4 +333,34 @@ resource "aws_cloudwatch_log_group" "asterisk" {
       Name = "${var.project_name}-asterisk-logs-${var.environment}"
     }
   )
+}
+
+# Redis Configuration (self-hosted on Asterisk server)
+# Random auth password for Redis
+resource "random_password" "redis_password" {
+  length  = 32
+  special = false
+}
+
+# Store Redis password in Secrets Manager
+resource "aws_secretsmanager_secret" "redis_password" {
+  name = "${var.project_name}-redis-password-${var.environment}"
+
+  recovery_window_in_days = 0
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-redis-password-${var.environment}"
+    }
+  )
+}
+
+resource "aws_secretsmanager_secret_version" "redis_password" {
+  secret_id = aws_secretsmanager_secret.redis_password.id
+  secret_string = jsonencode({
+    password = random_password.redis_password.result
+    endpoint = aws_instance.asterisk.private_ip
+    port     = 6379
+  })
 }
