@@ -126,7 +126,7 @@ module "compute" {
   dial_tasks_queue_arn = module.messaging.dial_tasks_queue_arn
 
   # Database endpoints
-  rds_endpoint   = module.data.rds_endpoint
+  rds_endpoint = module.data.rds_endpoint
 
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket

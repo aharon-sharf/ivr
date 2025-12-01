@@ -186,17 +186,17 @@ resource "aws_iam_role_policy" "rds_proxy_secrets" {
 
 # RDS Proxy
 resource "aws_db_proxy" "main" {
-  name                   = "${var.project_name}-postgres-proxy-${var.environment}"
-  engine_family          = "POSTGRESQL"
+  name          = "${var.project_name}-postgres-proxy-${var.environment}"
+  engine_family = "POSTGRESQL"
   auth {
     auth_scheme = "SECRETS"
     iam_auth    = "DISABLED"
     secret_arn  = aws_db_instance.postgres.master_user_secret[0].secret_arn
   }
 
-  role_arn               = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids         = var.private_subnet_ids
-  require_tls            = true
+  role_arn       = aws_iam_role.rds_proxy.arn
+  vpc_subnet_ids = var.private_subnet_ids
+  require_tls    = true
 
   tags = merge(
     var.tags,
