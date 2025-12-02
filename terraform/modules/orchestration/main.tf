@@ -121,7 +121,7 @@ resource "aws_cloudwatch_event_rule" "campaign_scheduler" {
   name                = "${var.project_name}-campaign-scheduler"
   description         = "Triggers campaign execution at scheduled time"
   schedule_expression = "rate(1 minute)" # This will be overridden by dynamic rules per campaign
-  state               = "DISABLED" # Disabled by default - enable per campaign
+  state               = "DISABLED"       # Disabled by default - enable per campaign
 
   tags = var.tags
 }
