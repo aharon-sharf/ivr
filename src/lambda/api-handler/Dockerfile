@@ -1,13 +1,16 @@
 # Dockerfile for API Handler Lambda
 FROM public.ecr.aws/lambda/nodejs:18
 
-# Copy package files
+# Set working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy package files from repository root
 COPY package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy source code
+# Copy source code from repository root
 COPY src/ ./src/
 COPY tsconfig.json ./
 
