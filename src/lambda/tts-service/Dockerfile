@@ -1,15 +1,38 @@
-FROM public.ecr.aws/lambda/nodejs:18
+# TTS Service Lambda Dockerfile
+# Build stage
+FROM public.ecr.aws/lambda/nodejs:18 AS builder
+
+WORKDIR /build
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies for build
+RUN npm ci
+
+# Copy source and config
+COPY src/lambda/tts-service/index.ts ./src/lambda/tts-service/
+COPY src/types/ ./src/types/
+COPY src/models/ ./src/models/
+COPY tsconfig.json ./
+COPY tsconfig.build.json ./
+
+# Build
+RUN npx tsc -p tsconfig.build.json
+
+# Production stage
+FROM public.ecr.aws/lambda/nodejs:18
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
 RUN npm ci --only=production
 
-# Copy Lambda function code
-COPY src/lambda/tts-service/index.ts ./
-COPY src/types ./types/
-COPY src/models ./models/
+# Copy compiled code
+COPY --from=builder /build/dist/lambda/tts-service/index.js ./
 
 # Set the CMD to your handler
 CMD [ "index.handler" ]
