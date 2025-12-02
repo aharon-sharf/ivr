@@ -13,11 +13,10 @@ RUN npm ci
 
 # Copy source code from repository root
 COPY src/ ./src/
-COPY tsconfig.json ./
-COPY tsconfig.build.json ./
+COPY tsconfig.lambda.json ./
 
 # Build TypeScript
-RUN npx tsc -p tsconfig.build.json
+RUN npx tsc -p tsconfig.lambda.json
 
 # Production stage
 FROM public.ecr.aws/lambda/nodejs:18

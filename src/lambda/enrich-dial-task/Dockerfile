@@ -14,11 +14,10 @@ RUN npm ci
 COPY src/lambda/enrich-dial-task/index.ts ./src/lambda/enrich-dial-task/
 COPY src/models/ ./src/models/
 COPY src/types/ ./src/types/
-COPY tsconfig.json ./
-COPY tsconfig.build.json ./
+COPY tsconfig.lambda.json ./
 
 # Build
-RUN npx tsc -p tsconfig.build.json
+RUN npx tsc -p tsconfig.lambda.json
 
 # Production stage
 FROM public.ecr.aws/lambda/nodejs:20

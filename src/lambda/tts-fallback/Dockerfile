@@ -14,11 +14,10 @@ RUN npm ci
 COPY src/lambda/tts-fallback/index.ts ./src/lambda/tts-fallback/
 COPY src/types/ ./src/types/
 COPY src/models/ ./src/models/
-COPY tsconfig.json ./
-COPY tsconfig.build.json ./
+COPY tsconfig.lambda.json ./
 
 # Build
-RUN npx tsc -p tsconfig.build.json
+RUN npx tsc -p tsconfig.lambda.json
 
 # Production stage
 FROM public.ecr.aws/lambda/nodejs:18
