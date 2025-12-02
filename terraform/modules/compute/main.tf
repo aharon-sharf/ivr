@@ -3,29 +3,225 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
-# Reference Lambda functions deployed via GitHub Actions
-data "aws_lambda_function" "validate_campaign" {
+# IAM Role for Lambda Functions
+resource "aws_iam_role" "lambda_execution" {
+  name = "${var.project_name}-lambda-execution-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Lambda execution policy
+resource "aws_iam_role_policy" "lambda_execution" {
+  name = "${var.project_name}-lambda-execution-policy-${var.environment}"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.audio_files_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "polly:SynthesizeSpeech"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "states:StartExecution",
+          "states:DescribeExecution"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Lambda Functions - These will be created with placeholder images
+# GitHub Actions will update them with actual code
+
+resource "aws_lambda_function" "validate_campaign" {
   function_name = "validate-campaign-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/validate-campaign:latest"
+  timeout       = 30
+  memory_size   = 512
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
-data "aws_lambda_function" "dispatcher" {
+resource "aws_lambda_function" "dispatcher" {
   function_name = "dispatcher-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/dispatcher:latest"
+  timeout       = 60
+  memory_size   = 512
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
-data "aws_lambda_function" "status_checker" {
+resource "aws_lambda_function" "status_checker" {
   function_name = "status-checker-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/status-checker:latest"
+  timeout       = 30
+  memory_size   = 256
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
-data "aws_lambda_function" "report_generator" {
+resource "aws_lambda_function" "report_generator" {
   function_name = "report-generator-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/report-generator:latest"
+  timeout       = 300
+  memory_size   = 1024
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
-data "aws_lambda_function" "enrich_dial_task" {
+resource "aws_lambda_function" "enrich_dial_task" {
   function_name = "enrich-dial-task-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/enrich-dial-task:latest"
+  timeout       = 30
+  memory_size   = 256
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
-data "aws_lambda_function" "dialer_worker" {
+resource "aws_lambda_function" "dialer_worker" {
   function_name = "dialer-worker-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/dialer-worker:latest"
+  timeout       = 60
+  memory_size   = 512
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
 # Get latest Amazon Linux 2 AMI
