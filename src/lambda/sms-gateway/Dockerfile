@@ -14,6 +14,7 @@ RUN npm ci
 COPY src/lambda/sms-gateway/index.ts ./src/lambda/sms-gateway/
 COPY src/types/ ./src/types/
 COPY src/models/ ./src/models/
+COPY tsconfig.json ./
 COPY tsconfig.lambda.json ./
 
 # Build

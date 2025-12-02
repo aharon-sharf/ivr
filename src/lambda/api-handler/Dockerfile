@@ -13,6 +13,7 @@ RUN npm ci
 
 # Copy source code from repository root
 COPY src/ ./src/
+COPY tsconfig.json ./
 COPY tsconfig.lambda.json ./
 
 # Build TypeScript

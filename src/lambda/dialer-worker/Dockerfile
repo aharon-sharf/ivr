@@ -12,6 +12,7 @@ RUN npm ci
 
 # Copy source and config
 COPY src/lambda/dialer-worker/index.ts ./src/lambda/dialer-worker/
+COPY tsconfig.json ./
 COPY tsconfig.lambda.json ./
 
 # Build

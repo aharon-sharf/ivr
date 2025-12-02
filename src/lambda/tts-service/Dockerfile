@@ -14,6 +14,7 @@ RUN npm ci
 COPY src/lambda/tts-service/index.ts ./src/lambda/tts-service/
 COPY src/types/ ./src/types/
 COPY src/models/ ./src/models/
+COPY tsconfig.json ./
 COPY tsconfig.lambda.json ./
 
 # Build

@@ -14,6 +14,7 @@ RUN npm ci
 COPY src/lambda/enrich-dial-task/index.ts ./src/lambda/enrich-dial-task/
 COPY src/models/ ./src/models/
 COPY src/types/ ./src/types/
+COPY tsconfig.json ./
 COPY tsconfig.lambda.json ./
 
 # Build
