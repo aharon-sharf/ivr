@@ -135,6 +135,14 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
+      - name: Create ECR repository if it doesn't exist
+        if: steps.should-deploy.outputs.deploy == 'true'
+        run: |
+          aws ecr describe-repositories --repository-names ${{ matrix.function }} --region ${{ env.AWS_REGION }} || \
+          aws ecr create-repository --repository-name ${{ matrix.function }} --region ${{ env.AWS_REGION }} \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+      
       - name: Set up Docker Buildx
         if: steps.should-deploy.outputs.deploy == 'true'
         uses: docker/setup-buildx-action@v3
