@@ -17,7 +17,7 @@ export const ConfirmSignUpPage = () => {
   const location = useLocation();
   const { confirmSignUp, resendCode, isLoading } = useAuth();
 
-  const emailFromState = (location.state as any)?.email || '';
+  const emailFromState = (location.state as { email?: string })?.email || '';
   const [email, setEmail] = useState(emailFromState);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);

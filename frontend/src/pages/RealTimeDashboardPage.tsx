@@ -72,7 +72,7 @@ export const RealTimeDashboardPage = () => {
     error,
   } = useAppSelector((state) => state.metrics);
 
-  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [historicalData, setHistoricalData] = useState<Array<{ time: string; activeCalls: number; queueDepth: number; dialingRate: number }>>([]);
   const autoRefresh = true; // Auto-refresh enabled by default
 
   // Initialize WebSocket connection and fetch initial data

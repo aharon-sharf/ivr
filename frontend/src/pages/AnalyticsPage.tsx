@@ -53,12 +53,14 @@ export const AnalyticsPage = () => {
 
   useEffect(() => {
     loadCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedCampaignId && startDate && endDate) {
       loadHistoricalData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaignId, startDate, endDate]);
 
   const loadCampaigns = async () => {

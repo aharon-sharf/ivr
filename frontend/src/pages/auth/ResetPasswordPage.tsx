@@ -20,7 +20,7 @@ export const ResetPasswordPage = () => {
   const location = useLocation();
   const { confirmResetPassword, isLoading } = useAuth();
 
-  const emailFromState = (location.state as any)?.email || '';
+  const emailFromState = (location.state as { email?: string })?.email || '';
   const [email, setEmail] = useState(emailFromState);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');

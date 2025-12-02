@@ -56,6 +56,7 @@ export const CampaignListPage = () => {
 
   useEffect(() => {
     loadCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadCampaigns = async () => {

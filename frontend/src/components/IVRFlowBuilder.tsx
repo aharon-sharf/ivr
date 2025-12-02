@@ -43,7 +43,7 @@ import {
 import { IVRFlowDefinition, IVRNode, IVRAction } from '../types';
 
 // Custom node components
-const PlayAudioNode = ({ data }: { data: any }) => (
+const PlayAudioNode = ({ data }: { data: { audioUrl?: string; timeout?: number } }) => (
   <Box
     sx={{
       padding: 2,
@@ -70,7 +70,7 @@ const PlayAudioNode = ({ data }: { data: any }) => (
   </Box>
 );
 
-const CaptureInputNode = ({ data }: { data: any }) => (
+const CaptureInputNode = ({ data }: { data: { validInputs?: string[]; timeout?: number } }) => (
   <Box
     sx={{
       padding: 2,
@@ -101,7 +101,7 @@ const CaptureInputNode = ({ data }: { data: any }) => (
   </Box>
 );
 
-const MenuNode = ({ data }: { data: any }) => (
+const MenuNode = ({ data }: { data: { actions?: Record<string, IVRAction> } }) => (
   <Box
     sx={{
       padding: 2,
@@ -119,7 +119,7 @@ const MenuNode = ({ data }: { data: any }) => (
     </Box>
     {data.actions && Object.keys(data.actions).length > 0 && (
       <Box sx={{ mt: 1 }}>
-        {Object.entries(data.actions).map(([key, action]: [string, any]) => (
+        {Object.entries(data.actions).map(([key, action]) => (
           <Typography key={key} variant="caption" display="block">
             {key}: {action.type}
           </Typography>
@@ -129,7 +129,7 @@ const MenuNode = ({ data }: { data: any }) => (
   </Box>
 );
 
-const ActionNode = ({ data }: { data: any }) => (
+const ActionNode = ({ data }: { data: { actions?: Record<string, IVRAction> } }) => (
   <Box
     sx={{
       padding: 2,
@@ -147,7 +147,7 @@ const ActionNode = ({ data }: { data: any }) => (
     </Box>
     {data.actions && Object.keys(data.actions).length > 0 && (
       <Box sx={{ mt: 1 }}>
-        {Object.entries(data.actions).map(([key, action]: [string, any]) => (
+        {Object.entries(data.actions).map(([key, action]) => (
           <Chip
             key={key}
             label={`${key}: ${action.type}`}
@@ -260,7 +260,7 @@ export const IVRFlowBuilder = ({ initialFlow, onFlowChange, onSave }: IVRFlowBui
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
   };
 
-  const updateNodeData = (nodeId: string, data: any) => {
+  const updateNodeData = (nodeId: string, data: Record<string, unknown>) => {
     setNodes((nds) =>
       nds.map((node) => (node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node))
     );
@@ -575,7 +575,7 @@ export const IVRFlowBuilder = ({ initialFlow, onFlowChange, onSave }: IVRFlowBui
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {selectedNode.data.actions &&
-                      Object.entries(selectedNode.data.actions).map(([key, action]: [string, any]) => (
+                      Object.entries(selectedNode.data.actions).map(([key, action]) => (
                         <Box
                           key={key}
                           sx={{

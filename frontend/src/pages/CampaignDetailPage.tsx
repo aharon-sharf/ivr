@@ -41,6 +41,7 @@ export const CampaignDetailPage = () => {
     if (id) {
       loadCampaign(id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadCampaign = async (campaignId: string) => {

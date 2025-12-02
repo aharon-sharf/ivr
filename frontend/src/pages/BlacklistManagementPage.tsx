@@ -79,7 +79,7 @@ export const BlacklistManagementPage = () => {
   const loadBlacklist = async () => {
     try {
       setLoading(true);
-      const params: any = {
+      const params: Record<string, string | number> = {
         page: page + 1,
         limit: rowsPerPage,
       };
@@ -107,6 +107,7 @@ export const BlacklistManagementPage = () => {
 
   useEffect(() => {
     loadBlacklist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, searchQuery, sourceFilter]);
 
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info') => {

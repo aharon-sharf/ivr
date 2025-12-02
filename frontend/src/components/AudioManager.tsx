@@ -72,7 +72,7 @@ export const AudioManager = ({ onAudioSelected, currentAudioUrl }: AudioManagerP
     onAudioSelected(audioUrl, 'phone');
   };
 
-  const handleLibrarySelect = (audio: any) => {
+  const handleLibrarySelect = (audio: { url: string; id: string }) => {
     setSelectedAudio({ url: audio.url, source: 'library' });
     onAudioSelected(audio.url, 'library');
   };

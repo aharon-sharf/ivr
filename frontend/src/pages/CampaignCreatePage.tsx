@@ -135,14 +135,14 @@ export const CampaignCreatePage = () => {
     }
   };
 
-  const updateFormData = (field: string, value: any) => {
+  const updateFormData = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const updateSchedule = (field: string, value: any) => {
+  const updateSchedule = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       schedule: {
@@ -152,7 +152,7 @@ export const CampaignCreatePage = () => {
     }));
   };
 
-  const updateCallingWindow = (index: number, field: keyof TimeWindow, value: any) => {
+  const updateCallingWindow = (index: number, field: keyof TimeWindow, value: unknown) => {
     setFormData((prev) => {
       const windows = [...prev.callingWindows];
       windows[index] = {

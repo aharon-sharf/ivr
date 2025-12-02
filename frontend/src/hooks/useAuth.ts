@@ -51,6 +51,7 @@ export const useAuth = () => {
   // Check if user is authenticated on mount
   useEffect(() => {
     checkAuthStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuthStatus = useCallback(async () => {
@@ -89,8 +90,8 @@ export const useAuth = () => {
           },
         });
         return { success: true };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Sign up failed';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Sign up failed';
         dispatch(setError(errorMessage));
         return { success: false, error: errorMessage };
       } finally {
@@ -109,8 +110,8 @@ export const useAuth = () => {
           confirmationCode: code,
         });
         return { success: true };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Confirmation failed';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Confirmation failed';
         dispatch(setError(errorMessage));
         return { success: false, error: errorMessage };
       } finally {
@@ -125,8 +126,8 @@ export const useAuth = () => {
       try {
         await resendSignUpCode({ username: email });
         return { success: true };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Failed to resend code';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
         return { success: false, error: errorMessage };
       }
     },
@@ -148,8 +149,8 @@ export const useAuth = () => {
         }
 
         return { success: false, error: 'Sign in failed' };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Sign in failed';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
         dispatch(setError(errorMessage));
         return { success: false, error: errorMessage };
       } finally {
@@ -165,8 +166,8 @@ export const useAuth = () => {
       await signOut();
       dispatch(clearUser());
       return { success: true };
-    } catch (err: any) {
-      const errorMessage = err.message || 'Sign out failed';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Sign out failed';
       dispatch(setError(errorMessage));
       return { success: false, error: errorMessage };
     } finally {
@@ -180,8 +181,8 @@ export const useAuth = () => {
         dispatch(setLoading(true));
         await resetPassword({ username: email });
         return { success: true };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Password reset failed';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Password reset failed';
         dispatch(setError(errorMessage));
         return { success: false, error: errorMessage };
       } finally {
@@ -201,8 +202,8 @@ export const useAuth = () => {
           newPassword,
         });
         return { success: true };
-      } catch (err: any) {
-        const errorMessage = err.message || 'Password reset confirmation failed';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Password reset confirmation failed';
         dispatch(setError(errorMessage));
         return { success: false, error: errorMessage };
       } finally {

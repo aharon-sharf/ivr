@@ -38,7 +38,7 @@ export interface Contact {
   id: string;
   campaignId: string;
   phoneNumber: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   optimalCallTime?: string;
   blacklisted: boolean;
   createdAt: string;
@@ -70,7 +70,7 @@ export interface IVRNode {
 
 export interface IVRAction {
   type: 'send_sms' | 'transfer_agent' | 'add_to_blacklist' | 'trigger_donation' | 'end_call';
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 // Analytics Types

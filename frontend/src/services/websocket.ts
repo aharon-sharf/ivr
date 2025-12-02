@@ -13,7 +13,7 @@ export type WebSocketMessageType =
 
 export interface WebSocketMessage {
   type: WebSocketMessageType;
-  data: any;
+  data: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -130,7 +130,7 @@ class WebSocketService {
   /**
    * Send message through WebSocket
    */
-  send(message: any): void {
+  send(message: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {

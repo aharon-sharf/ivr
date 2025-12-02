@@ -114,7 +114,7 @@ export const CampaignComparisonPage = () => {
   const getRadarChartData = () => {
     const metrics = ['Answer Rate', 'Conversion Rate', 'Total Attempts', 'Converted'];
     return metrics.map((metric) => {
-      const dataPoint: any = { metric };
+      const dataPoint: Record<string, string | number> = { metric };
       comparisonData.forEach((campaign) => {
         switch (metric) {
           case 'Answer Rate':
