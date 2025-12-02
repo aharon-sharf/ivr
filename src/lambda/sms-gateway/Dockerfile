@@ -32,7 +32,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy compiled code
-COPY --from=builder /build/dist/lambda/sms-gateway/index.js ./
+COPY --from=builder /build/dist/ ./dist/
 
 # Set the CMD to your handler
-CMD [ "index.handler" ]
+CMD [ "dist/lambda/sms-gateway/index.handler" ]
