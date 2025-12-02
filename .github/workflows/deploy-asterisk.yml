@@ -104,7 +104,7 @@ jobs:
           tar -czf asterisk-worker.tar.gz -C dist .
       
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: asterisk-worker
           path: src/asterisk-worker/asterisk-worker.tar.gz
