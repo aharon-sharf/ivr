@@ -115,7 +115,7 @@ async function getOrCreateCDR(
   
   if (!cdr) {
     // Create new CDR
-    cdr = {
+    const newCdr = {
       callId: event.callId,
       campaignId: event.campaignId,
       contactId: event.contactId,
@@ -131,11 +131,12 @@ async function getOrCreateCDR(
       updatedAt: new Date(),
     };
     
-    await collection.insertOne(cdr as any);
+    const result = await collection.insertOne(newCdr as any);
+    cdr = { ...newCdr, _id: result.insertedId } as any;
     console.log(`Created new CDR for call ${callId}`);
   }
   
-  return cdr;
+  return cdr!;
 }
 
 /**

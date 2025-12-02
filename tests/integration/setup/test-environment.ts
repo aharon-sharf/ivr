@@ -103,7 +103,7 @@ export async function setupTestEnvironment(): Promise<TestEnvironment> {
       db: mongoDb,
     },
     redis: {
-      client: redisClient,
+      client: redisClient as any,
     },
   };
 }

@@ -86,6 +86,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Run TypeScript compiler
+        run: npx tsc --project tsconfig.build.json --noEmit
+      
       - name: Lint Lambda functions
         run: |
           # Check if ESLint is configured

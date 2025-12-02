@@ -250,7 +250,7 @@ export async function synthesizeSpeech(request: TTSRequest): Promise<AudioFile> 
     const command = new SynthesizeSpeechCommand({
       Text: request.text,
       VoiceId: options.voiceId,
-      LanguageCode: options.languageCode,
+      LanguageCode: options.languageCode as any,
       Engine: options.engine,
       OutputFormat: options.outputFormat,
       SampleRate: options.sampleRate,

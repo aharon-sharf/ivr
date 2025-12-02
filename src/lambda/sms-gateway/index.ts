@@ -237,7 +237,7 @@ async function sendSMS(request: SMSRequest): Promise<SMSResult> {
       };
     } else {
       // Failure
-      const errorText = messageStatus['error-text'] || 'Unknown error';
+      const errorText = (messageStatus as any).errorText || (messageStatus as any)['error-text'] || 'Unknown error';
       console.error(`SMS send failed: ${errorText}`);
       
       // Check if failure indicates SMS not supported (landline, etc.)
