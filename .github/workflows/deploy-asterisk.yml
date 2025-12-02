@@ -91,7 +91,7 @@ jobs:
       
       - name: Install dependencies
         working-directory: src/asterisk-worker
-        run: npm ci
+        run: npm install --production
       
       - name: Create deployment package
         working-directory: src/asterisk-worker
