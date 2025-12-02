@@ -50,6 +50,7 @@ import {
 } from '../store/slices/metricsSlice';
 import { websocketService } from '../services/websocket';
 import { analyticsApi } from '../api/analytics';
+import type { CampaignMetrics } from '../types';
 
 // Chart colors
 const COLORS = {
@@ -95,13 +96,13 @@ export const RealTimeDashboardPage = () => {
         // Subscribe to metrics updates
         const unsubscribeMetrics = websocketService.subscribe('metrics_update', (message) => {
           if (message.data.campaignId) {
-            dispatch(updateCampaignMetrics(message.data));
+            dispatch(updateCampaignMetrics(message.data as unknown as CampaignMetrics));
           }
         });
 
         // Subscribe to system health updates
         const unsubscribeHealth = websocketService.subscribe('system_health_update', (message) => {
-          dispatch(updateSystemHealth(message.data));
+          dispatch(updateSystemHealth(message.data as unknown as { cpuUsage: number; memoryUsage: number; activeCalls: number; queueDepth: number; answerRate: number }));
         });
 
         // Cleanup on unmount

@@ -209,7 +209,7 @@ export const IVRFlowBuilder = ({ initialFlow, onFlowChange, onSave }: IVRFlowBui
       }
       if (node.actions) {
         Object.entries(node.actions).forEach(([key, action]) => {
-          if (action.parameters?.nextNodeId) {
+          if (action.parameters?.nextNodeId && typeof action.parameters.nextNodeId === 'string') {
             edges.push({
               id: `${node.id}-${key}-${action.parameters.nextNodeId}`,
               source: node.id,
@@ -575,28 +575,31 @@ export const IVRFlowBuilder = ({ initialFlow, onFlowChange, onSave }: IVRFlowBui
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {selectedNode.data.actions &&
-                      Object.entries(selectedNode.data.actions).map(([key, action]) => (
-                        <Box
-                          key={key}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            p: 1,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 1,
-                          }}
-                        >
-                          <Chip label={key} size="small" />
-                          <Typography variant="body2" sx={{ flex: 1 }}>
-                            {action.type}
-                          </Typography>
-                          <IconButton size="small" onClick={() => handleRemoveAction(key)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      ))}
+                      Object.entries(selectedNode.data.actions).map(([key, action]) => {
+                        const ivrAction = action as IVRAction;
+                        return (
+                          <Box
+                            key={key}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              p: 1,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1,
+                            }}
+                          >
+                            <Chip label={key} size="small" />
+                            <Typography variant="body2" sx={{ flex: 1 }}>
+                              {ivrAction.type}
+                            </Typography>
+                            <IconButton size="small" onClick={() => handleRemoveAction(key)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        );
+                      })}
                   </Box>
 
                   <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>

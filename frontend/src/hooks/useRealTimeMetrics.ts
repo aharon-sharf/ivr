@@ -10,6 +10,15 @@ import {
 } from '../store/slices/metricsSlice';
 import { websocketService } from '../services/websocket';
 import { analyticsApi } from '../api/analytics';
+import type { CampaignMetrics } from '../types';
+
+interface SystemHealth {
+  cpuUsage: number;
+  memoryUsage: number;
+  activeCalls: number;
+  queueDepth: number;
+  answerRate: number;
+}
 
 interface UseRealTimeMetricsOptions {
   campaignId?: string;
@@ -122,16 +131,16 @@ export const useRealTimeMetrics = (options: UseRealTimeMetricsOptions = {}) => {
       if (campaignId) {
         // Only update if message is for our campaign
         if (message.data.campaignId === campaignId) {
-          dispatch(updateCampaignMetrics(message.data));
+          dispatch(updateCampaignMetrics(message.data as unknown as CampaignMetrics));
         }
       } else {
         // Update any campaign metrics
-        dispatch(updateCampaignMetrics(message.data));
+        dispatch(updateCampaignMetrics(message.data as unknown as CampaignMetrics));
       }
     });
 
     const unsubscribeHealth = websocketService.subscribe('system_health_update', (message) => {
-      dispatch(updateSystemHealth(message.data));
+      dispatch(updateSystemHealth(message.data as unknown as SystemHealth));
     });
 
     // Cleanup on unmount
