@@ -183,6 +183,7 @@ jobs:
       
       - name: Copy Node.js Worker to deployment location
         run: |
+          mkdir -p ansible/files
           cp /tmp/asterisk-worker.tar.gz ansible/files/
       
       - name: Run Ansible Playbook
