@@ -64,6 +64,21 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       
+      - name: Determine environment
+        id: determine-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="production"
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            ENV="dev"
+          else
+            ENV="dev"
+          fi
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "Deploying to environment: ${ENV}"
+      
       - name: Get infrastructure outputs
         id: terraform-outputs
         working-directory: terraform
@@ -75,6 +90,16 @@ jobs:
           
           # Initialize Terraform
           terraform init
+          
+          # Select the correct workspace
+          ENV="${{ steps.determine-env.outputs.environment }}"
+          echo "Selecting Terraform workspace: ${ENV}"
+          terraform workspace select ${ENV} || {
+            echo "Error: Terraform workspace '${ENV}' does not exist"
+            echo "Available workspaces:"
+            terraform workspace list
+            exit 1
+          }
           
           # Get outputs
           BUCKET_NAME=$(terraform output -raw frontend_hosting_bucket)
@@ -110,6 +135,8 @@ jobs:
         id: get-url
         working-directory: terraform
         run: |
+          # Ensure we're still in the correct workspace
+          terraform workspace select ${{ steps.determine-env.outputs.environment }}
           FRONTEND_URL=$(terraform output -raw frontend_url)
           echo "frontend_url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
       
@@ -121,5 +148,5 @@ jobs:
           echo "**S3 Bucket:** ${{ steps.terraform-outputs.outputs.bucket_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**CloudFront Distribution:** ${{ steps.terraform-outputs.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.determine-env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
