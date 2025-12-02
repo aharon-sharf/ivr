@@ -2,37 +2,37 @@
 
 output "validate_campaign_lambda_arn" {
   description = "Validate Campaign Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.validate_campaign.arn
 }
 
 output "dispatcher_lambda_arn" {
   description = "Dispatcher Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.dispatcher.arn
 }
 
 output "campaign_status_lambda_arn" {
   description = "Campaign Status Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.status_checker.arn
 }
 
 output "status_checker_lambda_arn" {
   description = "Status Checker Lambda ARN (alias for campaign_status_lambda_arn)"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.status_checker.arn
 }
 
 output "report_generator_lambda_arn" {
   description = "Report Generator Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.report_generator.arn
 }
 
 output "enrich_dial_task_lambda_arn" {
   description = "Enrich Dial Task Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.enrich_dial_task.arn
 }
 
 output "dialer_worker_lambda_arn" {
   description = "Dialer Worker Lambda ARN"
-  value       = local.placeholder_lambda_arn
+  value       = data.aws_lambda_function.dialer_worker.arn
 }
 
 output "asterisk_instance_id" {

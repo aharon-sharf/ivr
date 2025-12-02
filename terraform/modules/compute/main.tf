@@ -1,12 +1,32 @@
 # Compute Module - Lambda Functions and Asterisk EC2
 
-# Placeholder outputs for now
-locals {
-  placeholder_lambda_arn = "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:placeholder"
-}
-
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
+
+# Reference Lambda functions deployed via GitHub Actions
+data "aws_lambda_function" "validate_campaign" {
+  function_name = "validate-campaign-${var.environment}"
+}
+
+data "aws_lambda_function" "dispatcher" {
+  function_name = "dispatcher-${var.environment}"
+}
+
+data "aws_lambda_function" "status_checker" {
+  function_name = "status-checker-${var.environment}"
+}
+
+data "aws_lambda_function" "report_generator" {
+  function_name = "report-generator-${var.environment}"
+}
+
+data "aws_lambda_function" "enrich_dial_task" {
+  function_name = "enrich-dial-task-${var.environment}"
+}
+
+data "aws_lambda_function" "dialer_worker" {
+  function_name = "dialer-worker-${var.environment}"
+}
 
 # Get latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux_2" {
