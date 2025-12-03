@@ -471,8 +471,16 @@ async function addToBlacklist(
   try {
     const body = JSON.parse(event.body || '{}');
     
-    if (!body.phoneNumbers || !Array.isArray(body.phoneNumbers)) {
-      return errorResponse(400, 'VALIDATION_ERROR', 'Phone numbers array is required');
+    // Support both single phoneNumber and phoneNumbers array
+    let phoneNumbers: string[];
+    if (body.phoneNumber && typeof body.phoneNumber === 'string') {
+      // Single phone number from frontend
+      phoneNumbers = [body.phoneNumber];
+    } else if (body.phoneNumbers && Array.isArray(body.phoneNumbers)) {
+      // Array of phone numbers
+      phoneNumbers = body.phoneNumbers;
+    } else {
+      return errorResponse(400, 'VALIDATION_ERROR', 'Phone number or phone numbers array is required');
     }
 
     if (!body.reason) {
@@ -484,7 +492,7 @@ async function addToBlacklist(
     }
 
     const result = await blacklistService.addToBlacklist({
-      phoneNumbers: body.phoneNumbers,
+      phoneNumbers,
       reason: body.reason,
       source: body.source,
     });
