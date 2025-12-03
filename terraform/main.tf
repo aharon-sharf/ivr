@@ -135,9 +135,9 @@ module "compute" {
   cognito_client_id    = module.auth.app_client_id
 
   # Database credentials
-  rds_database_name      = "campaign_system"
-  rds_username           = "admin"
-  rds_master_secret_arn  = module.data.rds_master_secret_arn
+  rds_database_name     = "campaign_system"
+  rds_username          = "admin"
+  rds_master_secret_arn = module.data.rds_master_secret_arn
 
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket
