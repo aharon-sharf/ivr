@@ -36,22 +36,25 @@ export async function handler(
     const path = event.path;
     const method = event.httpMethod;
 
+    // Remove /api prefix if present (from API Gateway stage path)
+    const normalizedPath = path.replace(/^\/api/, '');
+
     // Campaign CRUD routes
-    if (path.startsWith('/campaigns')) {
+    if (normalizedPath.startsWith('/campaigns')) {
       return await handleCampaignRoutes(event, method, user);
     }
 
     // Contact routes
-    if (path.startsWith('/contacts')) {
+    if (normalizedPath.startsWith('/contacts')) {
       return await handleContactRoutes(event, method, user);
     }
 
     // Blacklist routes
-    if (path.startsWith('/blacklist')) {
+    if (normalizedPath.startsWith('/blacklist')) {
       return await handleBlacklistRoutes(event, method, user);
     }
 
-    return errorResponse(404, 'NOT_FOUND', 'Route not found');
+    return errorResponse(404, 'NOT_FOUND', `Route not found: ${path}`);
   } catch (error) {
     console.error('Error handling request:', error);
     return errorResponse(
@@ -71,7 +74,8 @@ async function handleCampaignRoutes(
   method: string,
   user: AuthenticatedUser
 ): Promise<APIGatewayProxyResult> {
-  const pathParts = event.path.split('/').filter(Boolean);
+  const normalizedPath = event.path.replace(/^\/api/, '');
+  const pathParts = normalizedPath.split('/').filter(Boolean);
   const campaignId = pathParts[1]; // /campaigns/{id}
 
   switch (method) {
@@ -274,7 +278,8 @@ async function handleContactRoutes(
   method: string,
   user: AuthenticatedUser
 ): Promise<APIGatewayProxyResult> {
-  const pathParts = event.path.split('/').filter(Boolean);
+  const normalizedPath = event.path.replace(/^\/api/, '');
+  const pathParts = normalizedPath.split('/').filter(Boolean);
 
   switch (method) {
     case 'POST':
@@ -411,7 +416,8 @@ async function handleBlacklistRoutes(
   method: string,
   user: AuthenticatedUser
 ): Promise<APIGatewayProxyResult> {
-  const pathParts = event.path.split('/').filter(Boolean);
+  const normalizedPath = event.path.replace(/^\/api/, '');
+  const pathParts = normalizedPath.split('/').filter(Boolean);
 
   switch (method) {
     case 'POST':
