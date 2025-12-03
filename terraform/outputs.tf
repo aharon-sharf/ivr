@@ -121,6 +121,16 @@ output "cognito_app_client_id" {
   value       = module.auth.app_client_id
 }
 
+output "cognito_user_pool_domain" {
+  description = "Cognito User Pool domain prefix"
+  value       = module.auth.user_pool_domain
+}
+
+output "cognito_hosted_ui_url" {
+  description = "Cognito Hosted UI URL"
+  value       = module.auth.hosted_ui_url
+}
+
 # ML Outputs (only available when enable_ml_module = true)
 output "sagemaker_endpoint_name" {
   description = "SageMaker Serverless Inference endpoint name"

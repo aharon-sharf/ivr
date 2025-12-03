@@ -31,6 +31,7 @@ API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
 COGNITO_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "il-central-1")
 COGNITO_USER_POOL_ID=$(terraform output -raw cognito_user_pool_id 2>/dev/null || echo "")
 COGNITO_CLIENT_ID=$(terraform output -raw cognito_app_client_id 2>/dev/null || echo "")
+COGNITO_DOMAIN=$(terraform output -raw cognito_user_pool_domain 2>/dev/null || echo "")
 
 cd ../frontend
 
@@ -50,6 +51,11 @@ if [ -z "$COGNITO_CLIENT_ID" ]; then
     exit 1
 fi
 
+if [ -z "$COGNITO_DOMAIN" ]; then
+    echo -e "${RED}Error: Could not retrieve Cognito Domain${NC}"
+    exit 1
+fi
+
 # Generate .env file
 cat > "${OUTPUT_FILE}" << EOF
 # Auto-generated from Terraform outputs
@@ -62,6 +68,7 @@ VITE_API_URL=${API_URL}
 VITE_COGNITO_REGION=${COGNITO_REGION}
 VITE_COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
 VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+VITE_COGNITO_DOMAIN=${COGNITO_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com
 
 # WebSocket URL (replace with actual WebSocket endpoint if different)
 VITE_WEBSOCKET_URL=${API_URL/https/wss}
@@ -80,4 +87,5 @@ echo -e "${YELLOW}  API URL: ${API_URL}${NC}"
 echo -e "${YELLOW}  Cognito Region: ${COGNITO_REGION}${NC}"
 echo -e "${YELLOW}  User Pool ID: ${COGNITO_USER_POOL_ID}${NC}"
 echo -e "${YELLOW}  Client ID: ${COGNITO_CLIENT_ID}${NC}"
+echo -e "${YELLOW}  Cognito Domain: ${COGNITO_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com${NC}"
 echo -e "\n${GREEN}You can now build and deploy the frontend.${NC}"

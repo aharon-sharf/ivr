@@ -52,20 +52,14 @@ jobs:
         working-directory: frontend
         run: npm run lint
       
-      - name: Build application
-        working-directory: frontend
-        run: npm run build
-        env:
-          NODE_ENV: production
-      
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (for Terraform outputs)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Determine environment
-        id: determine-env
+        id: determine-env-early
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             ENV="${{ github.event.inputs.environment }}"
@@ -79,8 +73,7 @@ jobs:
           echo "environment=${ENV}" >> $GITHUB_OUTPUT
           echo "Deploying to environment: ${ENV}"
       
-      - name: Get infrastructure outputs
-        id: terraform-outputs
+      - name: Generate environment configuration
         working-directory: terraform
         run: |
           # Install Terraform
@@ -92,7 +85,7 @@ jobs:
           terraform init
           
           # Select the correct workspace
-          ENV="${{ steps.determine-env.outputs.environment }}"
+          ENV="${{ steps.determine-env-early.outputs.environment }}"
           echo "Selecting Terraform workspace: ${ENV}"
           terraform workspace select ${ENV} || {
             echo "Error: Terraform workspace '${ENV}' does not exist"
@@ -100,6 +93,56 @@ jobs:
             terraform workspace list
             exit 1
           }
+          
+          # Get Terraform outputs and create .env.production
+          API_URL=$(terraform output -raw api_gateway_url)
+          COGNITO_REGION=$(terraform output -raw aws_region)
+          COGNITO_USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)
+          COGNITO_CLIENT_ID=$(terraform output -raw cognito_app_client_id)
+          COGNITO_DOMAIN=$(terraform output -raw cognito_user_pool_domain)
+          
+          # Create .env.production in frontend directory
+          cat > ../frontend/.env.production << EOF
+          # Auto-generated from Terraform outputs
+          # Generated at: $(date)
+          
+          # API Gateway URL
+          VITE_API_URL=${API_URL}
+          
+          # AWS Cognito Configuration
+          VITE_COGNITO_REGION=${COGNITO_REGION}
+          VITE_COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+          VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+          VITE_COGNITO_DOMAIN=${COGNITO_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com
+          
+          # WebSocket URL
+          VITE_WEBSOCKET_URL=${API_URL/https/wss}
+          
+          # Feature Flags
+          VITE_ENABLE_ANALYTICS=true
+          VITE_ENABLE_ML_PREDICTIONS=true
+          
+          # Environment
+          VITE_ENVIRONMENT=${ENV}
+          EOF
+          
+          echo "Generated .env.production with Cognito configuration"
+          cat ../frontend/.env.production
+      
+      - name: Build application
+        working-directory: frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+      
+      - name: Get infrastructure outputs
+        id: terraform-outputs
+        working-directory: terraform
+        run: |
+          # Terraform is already installed and initialized from previous step
+          # Select the correct workspace
+          ENV="${{ steps.determine-env-early.outputs.environment }}"
+          terraform workspace select ${ENV}
           
           # Get outputs
           BUCKET_NAME=$(terraform output -raw frontend_hosting_bucket)
@@ -136,7 +179,7 @@ jobs:
         working-directory: terraform
         run: |
           # Ensure we're still in the correct workspace
-          terraform workspace select ${{ steps.determine-env.outputs.environment }}
+          terraform workspace select ${{ steps.determine-env-early.outputs.environment }}
           FRONTEND_URL=$(terraform output -raw frontend_url)
           echo "frontend_url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
       
@@ -148,5 +191,5 @@ jobs:
           echo "**S3 Bucket:** ${{ steps.terraform-outputs.outputs.bucket_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**CloudFront Distribution:** ${{ steps.terraform-outputs.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ steps.determine-env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.determine-env-early.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

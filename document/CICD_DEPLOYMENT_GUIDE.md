@@ -704,6 +704,8 @@ aws rds describe-db-instances \
   --output text
 
 # Run migrations
+
+## Option 1: Direct Connection (if RDS is publicly accessible)
 export DB_ENDPOINT="<endpoint-from-above>"
 export DB_PASSWORD="<password-from-above>"
 
@@ -713,9 +715,27 @@ psql -h $DB_ENDPOINT -U admin -d campaign_system \
 psql -h $DB_ENDPOINT -U admin -d campaign_system \
   -f database/migrations/002_sms_replies_table.sql
 
+## Option 2: SSH Tunnel via Bastion/Jump Server (if RDS is in private subnet)
+# This allows you to run migrations from your local machine through a bastion host
+
+# 1. Create SSH tunnel through bastion (run in one terminal)
+ssh -i your-key.pem -L 5433:your-rds-endpoint:5432 ec2-user@bastion-ip -N
+
+# 2. In another terminal, run migrations through the tunnel
+export DB_PASSWORD="<password-from-above>"
+
+psql -h localhost -p 5433 -U admin -d campaign_system \
+  -f database/migrations/001_initial_schema.sql
+
+psql -h localhost -p 5433 -U admin -d campaign_system \
+  -f database/migrations/002_sms_replies_table.sql
+
+# Note: Keep the SSH tunnel running while executing migrations
+# Press Ctrl+C in the first terminal to close the tunnel when done
+
 # Create admin user in Cognito
 aws cognito-idp admin-create-user \
-  --user-pool-id $(aws cognito-idp list-user-pools --max-results 10 --query 'UserPools[?Name==`mass-voice-campaign-dev`].Id' --output text) \
+  --user-pool-id $(aws cognito-idp list-user-pools --max-results 10 --query 'UserPools[?Name==`mass-voice-campaign-user-pool-dev`].Id' --output text) \
   --username admin@example.com \
   --user-attributes Name=email,Value=admin@example.com Name=email_verified,Value=true \
   --temporary-password "TempPassword123!" \
