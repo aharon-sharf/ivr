@@ -61,7 +61,7 @@ async function getPool(): Promise<Pool> {
     return pool;
   }
 
-  const password = await getDbPassword();
+  const password: string = await getDbPassword();
   
   pool = new Pool({
     host: process.env.RDS_PROXY_ENDPOINT || process.env.DB_HOST,
