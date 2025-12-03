@@ -75,6 +75,21 @@ variable "cognito_client_id" {
   type        = string
 }
 
+variable "rds_database_name" {
+  description = "RDS database name"
+  type        = string
+}
+
+variable "rds_username" {
+  description = "RDS master username"
+  type        = string
+}
+
+variable "rds_master_secret_arn" {
+  description = "ARN of the secret containing RDS master password"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

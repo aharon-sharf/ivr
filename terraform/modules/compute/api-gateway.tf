@@ -44,6 +44,9 @@ resource "aws_lambda_function" "api_handler" {
     variables = {
       ENVIRONMENT           = var.environment
       RDS_PROXY_ENDPOINT    = var.rds_proxy_endpoint
+      DB_NAME               = var.rds_database_name
+      DB_USER               = var.rds_username
+      DB_SECRET_ARN         = var.rds_master_secret_arn
       REDIS_ENDPOINT        = aws_instance.asterisk.private_ip
       REDIS_PORT            = "6379"
       REDIS_PASSWORD_SECRET = aws_secretsmanager_secret.redis_password.arn

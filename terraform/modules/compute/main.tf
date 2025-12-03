@@ -90,6 +90,13 @@ resource "aws_iam_role_policy" "lambda_execution" {
           "states:DescribeExecution"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = "*"
       }
     ]
   })

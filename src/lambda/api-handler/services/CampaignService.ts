@@ -4,6 +4,7 @@
  */
 
 import { Pool } from 'pg';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import {
   Campaign,
   CampaignType,
@@ -17,17 +18,69 @@ import {
   ListCampaignsResponse,
 } from '../../../types/api';
 
-// Initialize PostgreSQL connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+// Initialize Secrets Manager client
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'il-central-1' });
+
+// Database configuration
+const dbHost = process.env.RDS_PROXY_ENDPOINT || process.env.DB_HOST || 'localhost';
+const dbPort = parseInt(process.env.DB_PORT || '5432');
+const dbName = process.env.DB_NAME || 'campaign_system';
+const dbUser = process.env.DB_USER || 'admin';
+
+console.log('Database configuration', {
+  host: dbHost,
+  port: dbPort,
+  database: dbName,
+  user: dbUser,
 });
+
+// Lazy-initialized connection pool
+let pool: Pool | null = null;
+
+/**
+ * Get or create database connection pool
+ */
+async function getPool(): Promise<Pool> {
+  if (pool) {
+    return pool;
+  }
+
+  // Fetch password from Secrets Manager if secret ARN is provided
+  let dbPassword = process.env.DB_PASSWORD || '';
+  
+  if (process.env.DB_SECRET_ARN && !dbPassword) {
+    try {
+      console.log('Fetching database password from Secrets Manager');
+      const command = new GetSecretValueCommand({
+        SecretId: process.env.DB_SECRET_ARN,
+      });
+      const response = await secretsClient.send(command);
+      
+      if (response.SecretString) {
+        const secret = JSON.parse(response.SecretString);
+        dbPassword = secret.password;
+        console.log('Successfully retrieved database password');
+      }
+    } catch (error) {
+      console.error('Error fetching database password from Secrets Manager:', error);
+      throw error;
+    }
+  }
+
+  pool = new Pool({
+    host: dbHost,
+    port: dbPort,
+    database: dbName,
+    user: dbUser,
+    password: dbPassword,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+
+  console.log('Database connection pool initialized');
+  return pool;
+}
 
 export class CampaignService {
   /**
@@ -43,6 +96,7 @@ export class CampaignService {
       throw new Error(`Campaign validation failed: ${errors.join(', ')}`);
     }
 
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       const now = new Date();
@@ -80,6 +134,7 @@ export class CampaignService {
    * Get a campaign by ID
    */
   async getCampaign(campaignId: string): Promise<Campaign | null> {
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       const query = 'SELECT * FROM campaigns WHERE id = $1';
@@ -99,6 +154,7 @@ export class CampaignService {
    * List campaigns with optional filtering
    */
   async listCampaigns(filters: ListCampaignsRequest): Promise<ListCampaignsResponse> {
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       const conditions: string[] = [];
@@ -155,6 +211,7 @@ export class CampaignService {
     campaignId: string,
     request: UpdateCampaignRequest
   ): Promise<Campaign | null> {
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       // First, get the existing campaign
@@ -220,6 +277,7 @@ export class CampaignService {
    * Delete a campaign
    */
   async deleteCampaign(campaignId: string): Promise<boolean> {
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       const query = 'DELETE FROM campaigns WHERE id = $1';
