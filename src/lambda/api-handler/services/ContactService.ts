@@ -34,20 +34,27 @@ async function getDbPassword(): Promise<string> {
   }
 
   try {
-    const secretName = `rds-db-credentials/cluster-${process.env.ENVIRONMENT || 'staging'}-mass-voice-campaign-postgres/dbadmin`;
-    const command = new GetSecretValueCommand({ SecretId: secretName });
+    // Use the secret ARN from environment variable (set by Terraform)
+    const secretArn = process.env.DB_SECRET_ARN;
+    if (!secretArn) {
+      throw new Error('DB_SECRET_ARN environment variable not set');
+    }
+
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
     const response = await secretsClient.send(command);
     
     if (response.SecretString) {
       const secret = JSON.parse(response.SecretString);
       cachedDbPassword = secret.password as string;
+      console.log('Database password retrieved successfully');
       return cachedDbPassword;
     }
     
     throw new Error('No password found in secret');
   } catch (error) {
     console.error('Error retrieving database password:', error);
-    throw new Error('Failed to retrieve database password');
+    throw new Error(`Failed to retrieve database password: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -72,7 +79,7 @@ async function getPool(): Promise<Pool> {
     password,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // Increased to 10 seconds
   });
 
   return pool;

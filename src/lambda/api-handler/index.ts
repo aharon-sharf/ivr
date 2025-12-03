@@ -26,6 +26,21 @@ export async function handler(
   try {
     console.log('Received event:', JSON.stringify(event, null, 2));
 
+    // Handle OPTIONS requests for CORS preflight (no authentication required)
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+          'Access-Control-Allow-Credentials': true,
+        },
+        body: JSON.stringify({ message: 'CORS preflight successful' }),
+      };
+    }
+
     // Authenticate request and extract user
     const user = await authenticateRequest(event);
     if (!user) {
