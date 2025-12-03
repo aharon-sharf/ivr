@@ -132,6 +132,7 @@ module "compute" {
 
   # Authentication
   cognito_user_pool_id = module.auth.user_pool_id
+  cognito_client_id    = module.auth.app_client_id
 
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket

@@ -41,6 +41,20 @@ class ApiClient {
       async (error: AxiosError) => {
         if (error.response?.status === 401) {
           // Token expired or invalid, redirect to login
+          console.error('Authentication failed (401):', {
+            url: error.config?.url,
+            method: error.config?.method,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+          });
+          
+          // Save current location to return after login
+          const currentPath = window.location.pathname + window.location.search;
+          if (currentPath !== '/login') {
+            sessionStorage.setItem('returnUrl', currentPath);
+          }
+          
+          // Redirect to login
           window.location.href = '/login';
         }
         return Promise.reject(error);

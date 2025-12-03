@@ -70,6 +70,11 @@ variable "cognito_user_pool_id" {
   type        = string
 }
 
+variable "cognito_client_id" {
+  description = "Cognito App Client ID for JWT validation"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

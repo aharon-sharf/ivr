@@ -25,11 +25,15 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+  // Get return URL from session storage or location state
+  const returnUrl = sessionStorage.getItem('returnUrl');
+  const from = returnUrl || (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
+      // Clear return URL from session storage
+      sessionStorage.removeItem('returnUrl');
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, from]);
@@ -46,6 +50,8 @@ export const LoginPage = () => {
     const result = await signIn({ email, password });
 
     if (result.success) {
+      // Clear return URL from session storage
+      sessionStorage.removeItem('returnUrl');
       navigate(from, { replace: true });
     } else {
       setLocalError(result.error || 'Login failed');

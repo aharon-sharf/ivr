@@ -48,6 +48,7 @@ resource "aws_lambda_function" "api_handler" {
       REDIS_PORT            = "6379"
       REDIS_PASSWORD_SECRET = aws_secretsmanager_secret.redis_password.arn
       COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID     = var.cognito_client_id
       COGNITO_REGION        = data.aws_region.current.name
     }
   }
