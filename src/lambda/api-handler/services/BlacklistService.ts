@@ -4,6 +4,7 @@
  */
 
 import { Pool } from 'pg';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { createClient, RedisClientType } from 'redis';
 import * as XLSX from 'xlsx';
 import {
@@ -22,17 +23,64 @@ import {
 } from '../../../types/api';
 import { normalizePhoneNumber, validatePhoneNumber } from '../../../models/Contact';
 
-// Initialize PostgreSQL connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+// Initialize Secrets Manager client
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'il-central-1' });
+
+// Cache for database password
+let cachedDbPassword: string | null = null;
+
+/**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPassword) {
+    return cachedDbPassword;
+  }
+
+  try {
+    const secretName = `rds-db-credentials/cluster-${process.env.ENVIRONMENT || 'staging'}-mass-voice-campaign-postgres/dbadmin`;
+    const command = new GetSecretValueCommand({ SecretId: secretName });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedDbPassword = secret.password;
+      return cachedDbPassword;
+    }
+    
+    throw new Error('No password found in secret');
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw new Error('Failed to retrieve database password');
+  }
+}
+
+// Database connection pool (initialized lazily)
+let pool: Pool | null = null;
+
+/**
+ * Get or create database connection pool
+ */
+async function getPool(): Promise<Pool> {
+  if (pool) {
+    return pool;
+  }
+
+  const password = await getDbPassword();
+  
+  pool = new Pool({
+    host: process.env.RDS_PROXY_ENDPOINT || process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'campaign_system',
+    user: process.env.DB_USER || 'dbadmin',
+    password,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+
+  return pool;
+}
 
 // Initialize Redis client
 let redisClient: RedisClientType | null = null;
@@ -76,6 +124,7 @@ export class BlacklistService {
       return { added: 0, entries: [] };
     }
 
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -147,6 +196,7 @@ export class BlacklistService {
       return { removed: 0 };
     }
 
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       const query = `
@@ -173,6 +223,7 @@ export class BlacklistService {
     limit: number = 50,
     offset: number = 0
   ): Promise<GetBlacklistResponse> {
+    const pool = await getPool();
     const client = await pool.connect();
     try {
       // Get total count
@@ -250,6 +301,7 @@ export class BlacklistService {
       }
 
       // Check database
+      const pool = await getPool();
       const client = await pool.connect();
       try {
         const query = 'SELECT 1 FROM blacklist WHERE phone_number = $1';

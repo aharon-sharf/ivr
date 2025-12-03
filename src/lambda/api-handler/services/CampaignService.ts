@@ -21,20 +21,36 @@ import {
 // Initialize Secrets Manager client
 const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'il-central-1' });
 
-// Database configuration
-const dbHost = process.env.RDS_PROXY_ENDPOINT || process.env.DB_HOST || 'localhost';
-const dbPort = parseInt(process.env.DB_PORT || '5432');
-const dbName = process.env.DB_NAME || 'campaign_system';
-const dbUser = process.env.DB_USER || 'admin';
+// Cache for database password
+let cachedDbPassword: string | null = null;
 
-console.log('Database configuration', {
-  host: dbHost,
-  port: dbPort,
-  database: dbName,
-  user: dbUser,
-});
+/**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPassword) {
+    return cachedDbPassword;
+  }
 
-// Lazy-initialized connection pool
+  try {
+    const secretName = `rds-db-credentials/cluster-${process.env.ENVIRONMENT || 'staging'}-mass-voice-campaign-postgres/dbadmin`;
+    const command = new GetSecretValueCommand({ SecretId: secretName });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedDbPassword = secret.password;
+      return cachedDbPassword;
+    }
+    
+    throw new Error('No password found in secret');
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw new Error('Failed to retrieve database password');
+  }
+}
+
+// Database connection pool (initialized lazily)
 let pool: Pool | null = null;
 
 /**
@@ -45,34 +61,14 @@ async function getPool(): Promise<Pool> {
     return pool;
   }
 
-  // Fetch password from Secrets Manager if secret ARN is provided
-  let dbPassword = process.env.DB_PASSWORD || '';
+  const password = await getDbPassword();
   
-  if (process.env.DB_SECRET_ARN && !dbPassword) {
-    try {
-      console.log('Fetching database password from Secrets Manager');
-      const command = new GetSecretValueCommand({
-        SecretId: process.env.DB_SECRET_ARN,
-      });
-      const response = await secretsClient.send(command);
-      
-      if (response.SecretString) {
-        const secret = JSON.parse(response.SecretString);
-        dbPassword = secret.password;
-        console.log('Successfully retrieved database password');
-      }
-    } catch (error) {
-      console.error('Error fetching database password from Secrets Manager:', error);
-      throw error;
-    }
-  }
-
   pool = new Pool({
-    host: dbHost,
-    port: dbPort,
-    database: dbName,
-    user: dbUser,
-    password: dbPassword,
+    host: process.env.RDS_PROXY_ENDPOINT || process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'campaign_system',
+    user: process.env.DB_USER || 'dbadmin',
+    password,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
