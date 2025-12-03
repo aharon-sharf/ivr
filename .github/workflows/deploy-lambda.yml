@@ -31,7 +31,7 @@ on:
 
 env:
   AWS_REGION: il-central-1
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.il-central-1.amazonaws.com
 
 jobs:
