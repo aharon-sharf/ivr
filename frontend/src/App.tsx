@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthInitializer } from './components/auth/AuthInitializer';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignUpPage } from './pages/auth/SignUpPage';
@@ -21,6 +22,7 @@ import { BlacklistManagementPage } from './pages/BlacklistManagementPage';
 function App() {
   return (
     <Router>
+      <AuthInitializer>
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
@@ -120,6 +122,7 @@ function App() {
         <Route path="/" element={<Navigate to="/campaigns" replace />} />
         <Route path="*" element={<Navigate to="/campaigns" replace />} />
       </Routes>
+      </AuthInitializer>
     </Router>
   );
 }

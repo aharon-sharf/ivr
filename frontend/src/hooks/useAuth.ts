@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   signIn,
@@ -47,12 +47,6 @@ export const useAuth = () => {
   const { user, isAuthenticated, isLoading, error } = useSelector(
     (state: RootState) => state.auth
   );
-
-  // Check if user is authenticated on mount
-  useEffect(() => {
-    checkAuthStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const checkAuthStatus = useCallback(async () => {
     try {
