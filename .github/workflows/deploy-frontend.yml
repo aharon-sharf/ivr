@@ -106,17 +106,17 @@ jobs:
           # Auto-generated from Terraform outputs
           # Generated at: $(date)
           
-          # API Gateway URL
-          VITE_API_URL=${API_URL}
+          # API Gateway URL (using VITE_API_BASE_URL to match client.ts)
+          VITE_API_BASE_URL=${API_URL}
           
           # AWS Cognito Configuration
-          VITE_COGNITO_REGION=${COGNITO_REGION}
+          VITE_AWS_REGION=${COGNITO_REGION}
           VITE_COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
           VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
           VITE_COGNITO_DOMAIN=${COGNITO_DOMAIN}.auth.${COGNITO_REGION}.amazoncognito.com
           
           # WebSocket URL
-          VITE_WEBSOCKET_URL=${API_URL/https/wss}
+          VITE_WS_URL=${API_URL/https/wss}
           
           # Feature Flags
           VITE_ENABLE_ANALYTICS=true
