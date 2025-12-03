@@ -40,7 +40,7 @@ async function getDbPassword(): Promise<string> {
     
     if (response.SecretString) {
       const secret = JSON.parse(response.SecretString);
-      cachedDbPassword = secret.password;
+      cachedDbPassword = secret.password as string;
       return cachedDbPassword;
     }
     
