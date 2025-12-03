@@ -203,6 +203,23 @@ resource "aws_vpc_endpoint" "lambda" {
   )
 }
 
+# Cognito Identity Provider (IDP) Interface Endpoint
+resource "aws_vpc_endpoint" "cognito_idp" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.cognito-idp"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-cognito-idp-endpoint-${var.environment}"
+    }
+  )
+}
+
 # Polly Interface Endpoint (not available in all regions like il-central-1)
 resource "aws_vpc_endpoint" "polly" {
   count = contains(["il-central-1"], data.aws_region.current.name) ? 0 : 1
