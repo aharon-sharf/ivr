@@ -55,6 +55,21 @@ variable "ml_models_bucket" {
   type        = string
 }
 
+variable "private_subnet_ids" {
+  description = "Private subnet IDs for Lambda functions"
+  type        = list(string)
+}
+
+variable "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for Lambda connections"
+  type        = string
+}
+
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID for JWT validation"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

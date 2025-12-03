@@ -57,7 +57,17 @@ output "asterisk_security_group_id" {
 
 output "api_gateway_url" {
   description = "API Gateway URL"
-  value       = "https://placeholder.execute-api.${data.aws_region.current.name}.amazonaws.com"
+  value       = "${aws_api_gateway_stage.main.invoke_url}/api"
+}
+
+output "api_gateway_id" {
+  description = "API Gateway REST API ID"
+  value       = aws_api_gateway_rest_api.main.id
+}
+
+output "api_handler_lambda_arn" {
+  description = "API Handler Lambda ARN"
+  value       = aws_lambda_function.api_handler.arn
 }
 
 output "lambda_function_names" {

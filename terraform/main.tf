@@ -114,9 +114,10 @@ module "compute" {
   project_name = local.project_name
   environment  = var.environment
 
-  vpc_id            = module.networking.vpc_id
-  vpc_cidr          = var.vpc_cidr
-  public_subnet_ids = module.networking.public_subnet_ids
+  vpc_id             = module.networking.vpc_id
+  vpc_cidr           = var.vpc_cidr
+  public_subnet_ids  = module.networking.public_subnet_ids
+  private_subnet_ids = module.networking.private_subnet_ids
 
   # Asterisk EC2 Configuration
   asterisk_instance_type = var.asterisk_instance_type
@@ -126,7 +127,11 @@ module "compute" {
   dial_tasks_queue_arn = module.messaging.dial_tasks_queue_arn
 
   # Database endpoints
-  rds_endpoint = module.data.rds_endpoint
+  rds_endpoint       = module.data.rds_endpoint
+  rds_proxy_endpoint = module.data.rds_proxy_endpoint
+
+  # Authentication
+  cognito_user_pool_id = module.auth.user_pool_id
 
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket
