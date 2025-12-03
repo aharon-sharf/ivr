@@ -96,7 +96,7 @@ jobs:
           
           # Get Terraform outputs and create .env.production
           API_URL=$(terraform output -raw api_gateway_url)
-          COGNITO_REGION=$(terraform output -raw aws_region)
+          COGNITO_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "${{ env.AWS_REGION }}")
           COGNITO_USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)
           COGNITO_CLIENT_ID=$(terraform output -raw cognito_app_client_id)
           COGNITO_DOMAIN=$(terraform output -raw cognito_user_pool_domain)

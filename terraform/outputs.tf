@@ -1,5 +1,11 @@
 # Mass Voice Campaign System - Outputs
 
+# General Outputs
+output "aws_region" {
+  description = "AWS region where resources are deployed"
+  value       = var.aws_region
+}
+
 # Networking Outputs
 output "vpc_id" {
   description = "VPC ID"
