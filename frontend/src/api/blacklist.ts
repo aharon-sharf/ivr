@@ -28,7 +28,11 @@ export const getBlacklist = async (params?: {
   source?: string;
 }): Promise<ApiResponse<{ entries: BlacklistEntry[]; total: number }>> => {
   const response = await apiClient.get('/blacklist', { params });
-  return response.data;
+  // Backend returns data directly, wrap it in ApiResponse structure
+  return {
+    success: true,
+    data: response.data
+  };
 };
 
 /**

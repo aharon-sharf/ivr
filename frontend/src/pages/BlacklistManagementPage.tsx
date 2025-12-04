@@ -380,7 +380,7 @@ export const BlacklistManagementPage = () => {
                           {entry.phoneNumber}
                         </Typography>
                       </TableCell>
-                      <TableCell>{entry.reason}</TableCell>
+                      <TableCell>{entry.reason || 'No reason provided'}</TableCell>
                       <TableCell>
                         <Chip
                           label={formatSource(entry.source || 'unknown')}

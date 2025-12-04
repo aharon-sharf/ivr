@@ -110,15 +110,58 @@ async function getPool(): Promise<Pool> {
 
 // Initialize Redis client
 let redisClient: RedisClientType | null = null;
+let cachedRedisPassword: string | null = null;
+
+/**
+ * Get Redis password from AWS Secrets Manager
+ */
+async function getRedisPassword(): Promise<string> {
+  if (cachedRedisPassword) {
+    return cachedRedisPassword;
+  }
+
+  try {
+    const secretArn = process.env.REDIS_PASSWORD_SECRET;
+    if (!secretArn) {
+      console.warn('REDIS_PASSWORD_SECRET not set, connecting without password');
+      return '';
+    }
+
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedRedisPassword = secret.password as string;
+      return cachedRedisPassword;
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error retrieving Redis password:', error);
+    return '';
+  }
+}
 
 async function getRedisClient(): Promise<RedisClientType> {
   if (!redisClient) {
+    const redisHost = process.env.REDIS_ENDPOINT || 'localhost';
+    const redisPort = process.env.REDIS_PORT || '6379';
+    const redisPassword = await getRedisPassword();
+    
+    const redisUrl = redisPassword
+      ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
+      : `redis://${redisHost}:${redisPort}`;
+    
+    console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
+    
     redisClient = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      url: redisUrl,
     });
     
     redisClient.on('error', (err) => console.error('Redis Client Error', err));
     await redisClient.connect();
+    console.log('Redis client connected successfully');
   }
   return redisClient;
 }

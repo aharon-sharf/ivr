@@ -145,7 +145,7 @@ export interface ApiResponse<T> {
 // Blacklist Types
 export interface BlacklistEntry {
   phoneNumber: string;
-  reason: string;
+  reason: string | null;
   source?: 'user_optout' | 'admin_import' | 'compliance';
   addedAt: string;
   addedBy?: string;
