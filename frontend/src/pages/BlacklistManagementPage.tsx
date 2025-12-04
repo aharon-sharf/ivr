@@ -140,12 +140,17 @@ export const BlacklistManagementPage = () => {
 
     try {
       const response = await addToBlacklist(newPhoneNumber, newReason);
-      if (response.success) {
-        showSnackbar('Phone number added to blacklist', 'success');
-        setAddDialogOpen(false);
-        setNewPhoneNumber('');
-        setNewReason('');
-        loadBlacklist();
+      if (response.success && response.data) {
+        const addedCount = response.data.added;
+        if (addedCount > 0) {
+          showSnackbar('Phone number added to blacklist', 'success');
+          setAddDialogOpen(false);
+          setNewPhoneNumber('');
+          setNewReason('');
+          loadBlacklist();
+        } else {
+          showSnackbar('Phone number could not be added (may be invalid)', 'error');
+        }
       } else {
         showSnackbar(response.error || 'Failed to add number', 'error');
       }

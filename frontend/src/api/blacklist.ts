@@ -42,13 +42,17 @@ export const addToBlacklist = async (
   phoneNumber: string,
   reason: string,
   source: 'admin_import' | 'compliance' = 'admin_import'
-): Promise<ApiResponse<BlacklistEntry>> => {
+): Promise<ApiResponse<{ added: number; entries: BlacklistEntry[] }>> => {
   const response = await apiClient.post('/blacklist', {
     phoneNumber,
     reason,
     source,
   });
-  return response.data;
+  // Backend returns data directly, wrap it in ApiResponse structure
+  return {
+    success: true,
+    data: response.data
+  };
 };
 
 /**
