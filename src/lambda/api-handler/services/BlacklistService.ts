@@ -143,25 +143,46 @@ async function getRedisPassword(): Promise<string> {
   }
 }
 
-async function getRedisClient(): Promise<RedisClientType> {
+async function getRedisClient(): Promise<RedisClientType | null> {
   if (!redisClient) {
-    const redisHost = process.env.REDIS_ENDPOINT || 'localhost';
-    const redisPort = process.env.REDIS_PORT || '6379';
-    const redisPassword = await getRedisPassword();
-    
-    const redisUrl = redisPassword
-      ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
-      : `redis://${redisHost}:${redisPort}`;
-    
-    console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
-    
-    redisClient = createClient({
-      url: redisUrl,
-    });
-    
-    redisClient.on('error', (err) => console.error('Redis Client Error', err));
-    await redisClient.connect();
-    console.log('Redis client connected successfully');
+    try {
+      const redisHost = process.env.REDIS_ENDPOINT;
+      const redisPort = process.env.REDIS_PORT || '6379';
+      
+      // If Redis endpoint is not configured, skip Redis
+      if (!redisHost) {
+        console.warn('REDIS_ENDPOINT not configured, Redis caching disabled');
+        return null;
+      }
+      
+      const redisPassword = await getRedisPassword();
+      
+      const redisUrl = redisPassword
+        ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
+        : `redis://${redisHost}:${redisPort}`;
+      
+      console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
+      
+      redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 5000, // 5 second timeout
+          reconnectStrategy: false, // Don't auto-reconnect
+        }
+      });
+      
+      redisClient.on('error', (err) => {
+        console.error('Redis Client Error', err);
+        // Don't throw, just log
+      });
+      
+      await redisClient.connect();
+      console.log('Redis client connected successfully');
+    } catch (error) {
+      console.error('Failed to connect to Redis, continuing without cache:', error);
+      redisClient = null;
+      return null;
+    }
   }
   return redisClient;
 }
@@ -380,12 +401,17 @@ export class BlacklistService {
     try {
       const normalized = normalizePhoneNumber(phoneNumber);
       
-      // Check Redis cache first
+      // Check Redis cache first (if available)
       const redis = await getRedisClient();
-      const cached = await redis.get(`blacklist:${normalized}`);
-      
-      if (cached !== null) {
-        return cached === '1';
+      if (redis) {
+        try {
+          const cached = await redis.get(`blacklist:${normalized}`);
+          if (cached !== null) {
+            return cached === '1';
+          }
+        } catch (redisError) {
+          console.warn('Redis cache check failed, falling back to database:', redisError);
+        }
       }
 
       // Check database
@@ -396,8 +422,14 @@ export class BlacklistService {
         const result = await client.query(query, [normalized]);
         const isBlacklisted = result.rows.length > 0;
 
-        // Update cache
-        await redis.setEx(`blacklist:${normalized}`, 3600, isBlacklisted ? '1' : '0');
+        // Update cache (if available)
+        if (redis) {
+          try {
+            await redis.setEx(`blacklist:${normalized}`, 3600, isBlacklisted ? '1' : '0');
+          } catch (redisError) {
+            console.warn('Redis cache update failed:', redisError);
+          }
+        }
 
         return isBlacklisted;
       } finally {
@@ -474,6 +506,11 @@ export class BlacklistService {
   private async updateRedisCache(phoneNumbers: string[], isBlacklisted: boolean): Promise<void> {
     try {
       const redis = await getRedisClient();
+      if (!redis) {
+        console.log('Redis not available, skipping cache update');
+        return;
+      }
+      
       const value = isBlacklisted ? '1' : '0';
       
       // Update cache with 1 hour TTL
