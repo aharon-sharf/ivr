@@ -194,9 +194,10 @@ resource "aws_db_proxy" "main" {
     secret_arn  = aws_db_instance.postgres.master_user_secret[0].secret_arn
   }
 
-  role_arn       = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids = var.private_subnet_ids
-  require_tls    = true
+  role_arn               = aws_iam_role.rds_proxy.arn
+  vpc_subnet_ids         = var.private_subnet_ids
+  vpc_security_group_ids = [aws_security_group.rds_proxy.id]
+  require_tls            = true
 
   tags = merge(
     var.tags,
