@@ -54,7 +54,6 @@ resource "aws_lambda_function" "api_handler" {
       COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
       COGNITO_CLIENT_ID     = var.cognito_client_id
       COGNITO_REGION        = data.aws_region.current.name
-      AWS_REGION            = data.aws_region.current.name
     }
   }
 
