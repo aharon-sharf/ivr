@@ -25,4 +25,14 @@ output "rds_master_secret_arn" {
   value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
 }
 
+output "rds_username" {
+  description = "RDS PostgreSQL user name"
+  value = aws_db_instance.postgres.username
+}
+
+output "rds_db_name" {
+  description = "RDS PostgreSQL DB name"
+  value = aws_db_instance.postgres.db_name
+}
+
 # Redis has been moved to Asterisk EC2 server - see compute module outputs

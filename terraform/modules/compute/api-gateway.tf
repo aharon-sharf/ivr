@@ -44,6 +44,7 @@ resource "aws_lambda_function" "api_handler" {
     variables = {
       ENVIRONMENT           = var.environment
       RDS_PROXY_ENDPOINT    = var.rds_proxy_endpoint
+      DB_PORT               = "5432"
       DB_NAME               = var.rds_database_name
       DB_USER               = var.rds_username
       DB_SECRET_ARN         = var.rds_master_secret_arn
@@ -53,6 +54,7 @@ resource "aws_lambda_function" "api_handler" {
       COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
       COGNITO_CLIENT_ID     = var.cognito_client_id
       COGNITO_REGION        = data.aws_region.current.name
+      AWS_REGION            = data.aws_region.current.name
     }
   }
 
