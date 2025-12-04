@@ -54,7 +54,7 @@ resource "aws_db_instance" "postgres" {
   storage_encrypted = true
 
   db_name                     = "campaign_system"
-  username                    = "dbadmin"
+  username                    = "iadmin"
   manage_master_user_password = true
   # password = random_password.rds_password.result
 
