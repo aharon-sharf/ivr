@@ -315,6 +315,7 @@ async function processOptOutEvent(event: OptOutEvent): Promise<void> {
  * presses 9 during an IVR interaction to opt out of future communications.
  */
 export async function handler(event: SNSEvent, context: Context): Promise<void> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('Opt-Out Handler Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

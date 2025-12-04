@@ -4,7 +4,7 @@
  * Handles campaign CRUD operations with Cognito JWT validation and RBAC
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { CampaignService } from './services/CampaignService';
 import { ContactService } from './services/ContactService';
 import { BlacklistService } from './services/BlacklistService';
@@ -21,8 +21,10 @@ const blacklistService = new BlacklistService();
  * Main Lambda handler
  */
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
+  context: Context
 ): Promise<APIGatewayProxyResult> {
+  context.callbackWaitsForEmptyEventLoop = false;
   try {
     console.log('Received event:', JSON.stringify(event, null, 2));
 

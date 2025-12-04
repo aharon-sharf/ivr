@@ -299,6 +299,7 @@ export async function synthesizeSpeech(request: TTSRequest): Promise<AudioFile> 
  * Accepts TTS requests and returns audio file URLs.
  */
 export async function handler(event: any, context: Context): Promise<any> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('TTS Service Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

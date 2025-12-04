@@ -365,6 +365,7 @@ export async function handler(
   event: CampaignExecutionRequest,
   context: Context
 ): Promise<CampaignExecutionResult> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('Campaign Orchestrator Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

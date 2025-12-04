@@ -281,6 +281,7 @@ export async function handler(
   event: APIGatewayProxyEvent,
   context: Context
 ): Promise<APIGatewayProxyResult> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('SMS Reply Handler Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

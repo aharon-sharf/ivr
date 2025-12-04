@@ -302,6 +302,7 @@ async function processCallEvent(event: CallEvent): Promise<void> {
  * (initiated, answered, ended, DTMF pressed, action triggered).
  */
 export async function handler(event: SNSEvent, context: Context): Promise<void> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('CDR Logger Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

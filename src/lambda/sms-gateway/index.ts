@@ -354,6 +354,7 @@ async function triggerTTSFallback(request: SMSRequest, smsResult: SMSResult): Pr
  * when a recipient triggers an SMS action via DTMF input.
  */
 export async function handler(event: SNSEvent, context: Context): Promise<void> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('SMS Gateway Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -399,6 +400,7 @@ export async function handler(event: SNSEvent, context: Context): Promise<void> 
  * It updates the SMS record in Redis with the new status.
  */
 export async function webhookHandler(event: any, context: Context): Promise<any> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('SMS webhook handler invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

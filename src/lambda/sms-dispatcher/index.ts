@@ -395,6 +395,7 @@ export async function handler(
   event: SMSDispatchEvent,
   context: Context
 ): Promise<SMSDispatchResult> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('SMS Dispatcher Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

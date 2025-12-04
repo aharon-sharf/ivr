@@ -296,6 +296,7 @@ async function processDonationEvent(event: DonationEvent): Promise<void> {
  * presses 1 during an IVR interaction to trigger the donation flow.
  */
 export async function handler(event: SNSEvent, context: Context): Promise<void> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('Donation Handler Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   

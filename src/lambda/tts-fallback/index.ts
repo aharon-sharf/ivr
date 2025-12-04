@@ -362,6 +362,7 @@ async function processTTSFallback(request: TTSFallbackRequest): Promise<TTSFallb
  * when SMS delivery fails and TTS fallback is required.
  */
 export async function handler(event: SNSEvent, context: Context): Promise<void> {
+  context.callbackWaitsForEmptyEventLoop = false;
   console.log('TTS Fallback Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   
