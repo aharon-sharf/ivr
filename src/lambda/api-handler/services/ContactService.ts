@@ -80,6 +80,9 @@ async function getPool(): Promise<Pool> {
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // Increased to 10 seconds
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
 
   return pool;

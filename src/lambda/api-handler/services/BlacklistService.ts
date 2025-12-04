@@ -99,6 +99,9 @@ async function getPool(): Promise<Pool> {
     max: 5, // Reduced from 20 for Lambda
     idleTimeoutMillis: 10000, // Reduced from 30000
     connectionTimeoutMillis: 5000, // Reduced from 10000 to fail faster
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
 
   console.log(`Database pool created in ${Date.now() - startTime}ms`);
