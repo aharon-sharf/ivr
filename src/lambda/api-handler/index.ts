@@ -563,16 +563,26 @@ async function getBlacklist(
   event: APIGatewayProxyEvent,
   user: AuthenticatedUser
 ): Promise<APIGatewayProxyResult> {
+  console.log('getBlacklist handler called');
+  const startTime = Date.now();
+  
   try {
     const queryParams = event.queryStringParameters || {};
     const limit = queryParams.limit ? parseInt(queryParams.limit) : 50;
     const offset = queryParams.offset ? parseInt(queryParams.offset) : 0;
 
+    console.log(`Calling blacklistService.getBlacklist(${limit}, ${offset})`);
     const result = await blacklistService.getBlacklist(limit, offset);
+    console.log(`getBlacklist completed in ${Date.now() - startTime}ms`);
     return successResponse(200, result);
   } catch (error) {
-    console.error('Error getting blacklist:', error);
-    throw error;
+    console.error(`Error getting blacklist after ${Date.now() - startTime}ms:`, error);
+    return errorResponse(
+      500,
+      'DATABASE_ERROR',
+      'Failed to retrieve blacklist',
+      error instanceof Error ? error.message : undefined
+    );
   }
 }
 
