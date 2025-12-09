@@ -19,7 +19,22 @@ export const campaignApi = {
 
   // Create new campaign
   createCampaign: async (config: CampaignConfig): Promise<Campaign> => {
-    const response = await apiClient.post<ApiResponse<Campaign>>('/campaigns', config);
+    const payload = {
+      name: config.name,
+      type: config.type,
+      config: {
+        audioFileUrl: config.audioFileUrl,
+        smsTemplate: config.smsTemplate,
+        ivrFlow: config.ivrFlow,
+        callingWindows: config.callingWindows,
+        maxConcurrentCalls: config.maxConcurrentCalls,
+      },
+      schedule: config.schedule,
+      startTime: config.schedule?.startTime,
+      endTime: config.schedule?.endTime,
+      timezone: config.schedule?.timezone,
+    };
+    const response = await apiClient.post<ApiResponse<Campaign>>('/campaigns', payload);
     if (!response.data.data) {
       throw new Error('Failed to create campaign');
     }
