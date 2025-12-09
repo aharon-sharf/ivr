@@ -4,6 +4,7 @@
  */
 
 import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import * as XLSX from 'xlsx';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
@@ -489,7 +490,7 @@ export class ContactService {
    * Generate a unique ID for contacts
    */
   private generateId(): string {
-    return `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return randomUUID();
   }
 
   /**
