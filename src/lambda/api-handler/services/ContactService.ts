@@ -639,4 +639,58 @@ export class ContactService {
       client.release();
     }
   }
+
+  /**
+   * Create a single contact for a campaign
+   */
+  async createSingleContact(
+    campaignId: string,
+    phoneNumber: string,
+    metadata: Record<string, any> = {}
+  ): Promise<Contact> {
+    // Validate phone number
+    const normalizedNumber = normalizePhoneNumber(phoneNumber);
+    if (!validatePhoneNumber(normalizedNumber)) {
+      throw new Error(`Invalid phone number format: ${phoneNumber}`);
+    }
+
+    const pool = await getPool();
+    const client = await pool.connect();
+    try {
+      const id = this.generateId();
+      const now = new Date();
+
+      const query = `
+        INSERT INTO contacts (
+          id, campaign_id, phone_number, metadata, timezone, sms_capable,
+          status, attempts, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (campaign_id, phone_number) DO NOTHING
+        RETURNING *
+      `;
+
+      const values = [
+        id,
+        campaignId,
+        normalizedNumber,
+        JSON.stringify(metadata),
+        metadata.timezone || null,
+        true, // Default to SMS capable
+        'pending',
+        0,
+        now,
+        now,
+      ];
+
+      const result = await client.query(query, values);
+      
+      if (result.rows.length === 0) {
+        throw new Error('Contact with this phone number already exists in this campaign');
+      }
+
+      return this.mapRowToContact(result.rows[0]);
+    } finally {
+      client.release();
+    }
+  }
 }

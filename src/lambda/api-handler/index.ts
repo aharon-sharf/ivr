@@ -94,12 +94,16 @@ async function handleCampaignRoutes(
   const normalizedPath = event.path.replace(/^\/api/, '');
   const pathParts = normalizedPath.split('/').filter(Boolean);
   const campaignId = pathParts[1]; // /campaigns/{id}
+  const subResource = pathParts[2]; // /campaigns/{id}/{subResource}
 
   switch (method) {
     case 'POST':
       if (pathParts.length === 1) {
         // POST /campaigns - Create campaign
         return await createCampaign(event, user);
+      } else if (pathParts.length === 3 && campaignId && subResource === 'contacts') {
+        // POST /campaigns/{id}/contacts - Create contact for campaign
+        return await createContactForCampaign(campaignId, event, user);
       }
       break;
 
@@ -283,6 +287,57 @@ async function deleteCampaign(
     return successResponse(200, { message: 'Campaign deleted successfully' });
   } catch (error) {
     console.error('Error deleting campaign:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create a contact for a specific campaign
+ * Requires CampaignManager or Administrator role
+ */
+async function createContactForCampaign(
+  campaignId: string,
+  event: APIGatewayProxyEvent,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can create contacts'
+    );
+  }
+
+  try {
+    const body = JSON.parse(event.body || '{}');
+    
+    if (!body.phoneNumber || typeof body.phoneNumber !== 'string') {
+      return errorResponse(400, 'VALIDATION_ERROR', 'Phone number is required and must be a string');
+    }
+
+    // Verify campaign exists
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign) {
+      return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
+    }
+
+    // Create the contact
+    const contact = await contactService.createSingleContact(
+      campaignId,
+      body.phoneNumber,
+      body.metadata || {}
+    );
+
+    return successResponse(201, { contact });
+  } catch (error) {
+    console.error('Error creating contact:', error);
+    if (error instanceof Error && error.message.includes('Invalid phone number')) {
+      return errorResponse(400, 'VALIDATION_ERROR', error.message);
+    }
+    if (error instanceof Error && error.message.includes('already exists')) {
+      return errorResponse(400, 'CONFLICT', error.message);
+    }
     throw error;
   }
 }
