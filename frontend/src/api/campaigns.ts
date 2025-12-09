@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Campaign, CampaignConfig, ApiResponse } from '../types';
+import { Campaign, CampaignConfig, ApiResponse, Contact } from '../types';
 
 export const campaignApi = {
   // Get all campaigns
@@ -54,6 +54,18 @@ export const campaignApi = {
     const response = await apiClient.post<ApiResponse<Campaign>>(`/campaigns/${id}/resume`);
     if (!response.data.data) {
       throw new Error('Failed to resume campaign');
+    }
+    return response.data.data;
+  },
+
+  // Create contact for campaign
+  createContact: async (campaignId: string, contactData: { phoneNumber: string }): Promise<Contact> => {
+    const response = await apiClient.post<ApiResponse<Contact>>(
+      `/campaigns/${campaignId}/contacts`,
+      contactData
+    );
+    if (!response.data.data) {
+      throw new Error('Failed to create contact');
     }
     return response.data.data;
   },

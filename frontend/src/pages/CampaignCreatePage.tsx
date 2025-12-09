@@ -25,7 +25,7 @@ import { CampaignConfig, TimeWindow, IVRFlowDefinition } from '../types';
 import { AudioManager } from '../components/AudioManager';
 import { IVRFlowBuilder } from '../components/IVRFlowBuilder';
 
-const steps = ['Basic Information', 'Schedule & Time Windows', 'Configuration', 'Review'];
+const steps = ['Basic Information', 'Phone Numbers', 'Schedule & Time Windows', 'Configuration', 'Review'];
 
 export const CampaignCreatePage = () => {
   const navigate = useNavigate();
@@ -55,6 +55,10 @@ export const CampaignCreatePage = () => {
     maxConcurrentCalls: 100,
   });
 
+  // Phone numbers state
+  const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
+  const [phoneNumberInput, setPhoneNumberInput] = useState('');
+
   const handleNext = () => {
     if (validateStep(activeStep)) {
       setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -80,7 +84,11 @@ export const CampaignCreatePage = () => {
         }
         return true;
 
-      case 1: // Schedule & Time Windows
+      case 1: // Phone Numbers
+        // Phone numbers are optional - user can add them later
+        return true;
+
+      case 2: // Schedule & Time Windows
         if (!formData.schedule.startTime) {
           setErrorMessage('Start time is required');
           return false;
@@ -99,7 +107,7 @@ export const CampaignCreatePage = () => {
         }
         return true;
 
-      case 2: // Configuration
+      case 3: // Configuration
         if (formData.type === 'voice' || formData.type === 'hybrid') {
           if (!formData.audioFileUrl?.trim()) {
             setErrorMessage('Audio file URL is required for voice campaigns');
@@ -124,6 +132,21 @@ export const CampaignCreatePage = () => {
       setIsSubmitting(true);
       setErrorMessage('');
       const campaign = await campaignApi.createCampaign(formData);
+      
+      // Create contacts if phone numbers were provided
+      if (phoneNumbers.length > 0) {
+        try {
+          await Promise.all(
+            phoneNumbers.map((phoneNumber) =>
+              campaignApi.createContact(campaign.id, { phoneNumber })
+            )
+          );
+        } catch (contactErr) {
+          console.warn('Some contacts failed to create:', contactErr);
+          // Don't fail the whole campaign creation if contacts fail
+        }
+      }
+      
       dispatch(addCampaign(campaign));
       navigate('/campaigns');
     } catch (err) {
@@ -187,6 +210,35 @@ export const CampaignCreatePage = () => {
     }));
   };
 
+  const validatePhoneNumber = (phoneNumber: string): boolean => {
+    // Basic E.164 format validation: +[country code][number]
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    return e164Regex.test(phoneNumber.trim());
+  };
+
+  const addPhoneNumber = () => {
+    const trimmed = phoneNumberInput.trim();
+    if (!trimmed) {
+      setErrorMessage('Please enter a phone number');
+      return;
+    }
+    if (!validatePhoneNumber(trimmed)) {
+      setErrorMessage('Phone number must be in E.164 format (e.g., +1234567890)');
+      return;
+    }
+    if (phoneNumbers.includes(trimmed)) {
+      setErrorMessage('This phone number is already added');
+      return;
+    }
+    setPhoneNumbers([...phoneNumbers, trimmed]);
+    setPhoneNumberInput('');
+    setErrorMessage('');
+  };
+
+  const removePhoneNumber = (index: number) => {
+    setPhoneNumbers(phoneNumbers.filter((_, i) => i !== index));
+  };
+
   const getDayName = (day: number): string => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return days[day];
@@ -230,7 +282,63 @@ export const CampaignCreatePage = () => {
           </Grid>
         );
 
-      case 1: // Schedule & Time Windows
+      case 1: // Phone Numbers
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Add Phone Numbers (Optional)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Add phone numbers for this campaign. You can also upload a CSV file with contacts later.
+                Phone numbers must be in E.164 format (e.g., +1234567890).
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  fullWidth
+                  placeholder="Enter phone number (e.g., +1234567890)"
+                  value={phoneNumberInput}
+                  onChange={(e) => setPhoneNumberInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addPhoneNumber();
+                    }
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={addPhoneNumber}
+                  sx={{ whiteSpace: 'nowrap' }}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Grid>
+            {phoneNumbers.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Added Phone Numbers ({phoneNumbers.length})
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {phoneNumbers.map((number, index) => (
+                    <Chip
+                      key={index}
+                      label={number}
+                      onDelete={() => removePhoneNumber(index)}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        );
+
+      case 2: // Schedule & Time Windows
         return (
           <Grid container spacing={3}>
             <Grid item xs={12}>
@@ -351,7 +459,7 @@ export const CampaignCreatePage = () => {
           </Grid>
         );
 
-      case 2: // Configuration
+      case 3: // Configuration
         return (
           <Grid container spacing={3}>
             {(formData.type === 'voice' || formData.type === 'hybrid') && (
@@ -430,7 +538,7 @@ export const CampaignCreatePage = () => {
           </Grid>
         );
 
-      case 3: // Review
+      case 4: // Review
         return (
           <Grid container spacing={3}>
             <Grid item xs={12}>
@@ -447,6 +555,20 @@ export const CampaignCreatePage = () => {
                 <Typography variant="body2">Type: {formData.type.toUpperCase()}</Typography>
               </Paper>
             </Grid>
+            {phoneNumbers.length > 0 && (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Phone Numbers ({phoneNumbers.length})
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {phoneNumbers.map((number, index) => (
+                      <Chip key={index} label={number} size="small" />
+                    ))}
+                  </Box>
+                </Paper>
+              </Grid>
+            )}
             <Grid item xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
