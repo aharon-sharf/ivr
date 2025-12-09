@@ -12,6 +12,14 @@ export function successResponse(
   statusCode: number,
   data: any
 ): APIGatewayProxyResult {
+  // Safely serialize data, converting Date objects to ISO strings
+  const body = JSON.stringify(data, (key, value) => {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return value;
+  });
+
   return {
     statusCode,
     headers: {
@@ -21,7 +29,7 @@ export function successResponse(
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Credentials': true,
     },
-    body: JSON.stringify(data),
+    body,
   };
 }
 

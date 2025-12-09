@@ -34,11 +34,11 @@ export const campaignApi = {
       endTime: config.schedule?.endTime,
       timezone: config.schedule?.timezone,
     };
-    const response = await apiClient.post<ApiResponse<Campaign>>('/campaigns', payload);
-    if (!response.data.data) {
+    const response = await apiClient.post<{ campaign: Campaign }>('/campaigns', payload);
+    if (!response.data.campaign) {
       throw new Error('Failed to create campaign');
     }
-    return response.data.data;
+    return response.data.campaign;
   },
 
   // Update existing campaign
