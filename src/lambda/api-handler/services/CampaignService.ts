@@ -4,6 +4,7 @@
  */
 
 import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import {
   Campaign,
@@ -317,6 +318,6 @@ export class CampaignService {
    * Generate a unique ID for campaigns
    */
   private generateId(): string {
-    return `campaign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return randomUUID();
   }
 }
