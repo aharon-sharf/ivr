@@ -162,7 +162,7 @@ async function createCampaign(
 
   try {
     const campaign = await campaignService.createCampaign(body, user.userId);
-    return successResponse(201, { campaign });
+    return successResponse(201, campaign, 'Campaign created successfully');
   } catch (error) {
     console.error('Error creating campaign:', error);
     if (error instanceof Error && error.message.includes('validation')) {
@@ -186,7 +186,7 @@ async function getCampaign(
       return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
     }
 
-    return successResponse(200, { campaign });
+    return successResponse(200, campaign);
   } catch (error) {
     console.error('Error getting campaign:', error);
     throw error;
@@ -250,7 +250,7 @@ async function updateCampaign(
       return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
     }
 
-    return successResponse(200, { campaign });
+    return successResponse(200, campaign, 'Campaign updated successfully');
   } catch (error) {
     console.error('Error updating campaign:', error);
     if (error instanceof Error && error.message.includes('validation')) {
@@ -284,7 +284,7 @@ async function deleteCampaign(
       return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
     }
 
-    return successResponse(200, { message: 'Campaign deleted successfully' });
+    return successResponse(200, null, 'Campaign deleted successfully');
   } catch (error) {
     console.error('Error deleting campaign:', error);
     throw error;
@@ -329,7 +329,7 @@ async function createContactForCampaign(
       body.metadata || {}
     );
 
-    return successResponse(201, { contact });
+    return successResponse(201, contact, 'Contact created successfully');
   } catch (error) {
     console.error('Error creating contact:', error);
     if (error instanceof Error && error.message.includes('Invalid phone number')) {
@@ -416,7 +416,7 @@ async function uploadContactList(
       body.fileType
     );
 
-    return successResponse(200, { result });
+    return successResponse(200, result, 'Contact list uploaded successfully');
   } catch (error) {
     console.error('Error uploading contact list:', error);
     if (error instanceof Error && error.message.includes('Could not find phone number column')) {
@@ -440,7 +440,7 @@ async function getContact(
       return errorResponse(404, 'NOT_FOUND', 'Contact not found');
     }
 
-    return successResponse(200, { contact });
+    return successResponse(200, contact);
   } catch (error) {
     console.error('Error getting contact:', error);
     throw error;
@@ -468,12 +468,7 @@ async function listContacts(
     };
 
     const result = await contactService.listContacts(queryParams.campaignId, filters);
-    return successResponse(200, {
-      contacts: result.contacts,
-      total: result.total,
-      limit: filters.limit,
-      offset: filters.offset,
-    });
+    return successResponse(200, result);
   } catch (error) {
     console.error('Error listing contacts:', error);
     throw error;

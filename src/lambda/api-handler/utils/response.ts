@@ -6,14 +6,21 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 
 /**
- * Create a success response
+ * Create a success response with standardized ApiResponse format
  */
-export function successResponse(
+export function successResponse<T>(
   statusCode: number,
-  data: any
+  data: T,
+  message?: string
 ): APIGatewayProxyResult {
+  const responseBody = {
+    success: true,
+    data,
+    ...(message && { message }),
+  };
+
   // Safely serialize data, converting Date objects to ISO strings
-  const body = JSON.stringify(data, (key, value) => {
+  const body = JSON.stringify(responseBody, (key, value) => {
     if (value instanceof Date) {
       return value.toISOString();
     }
@@ -34,7 +41,7 @@ export function successResponse(
 }
 
 /**
- * Create an error response
+ * Create an error response with standardized ApiResponse format
  */
 export function errorResponse(
   statusCode: number,
@@ -52,6 +59,7 @@ export function errorResponse(
       'Access-Control-Allow-Credentials': true,
     },
     body: JSON.stringify({
+      success: false,
       error: {
         code,
         message,

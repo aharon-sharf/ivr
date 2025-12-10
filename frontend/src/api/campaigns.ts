@@ -4,8 +4,8 @@ import { Campaign, CampaignConfig, ApiResponse, Contact } from '../types';
 export const campaignApi = {
   // Get all campaigns
   getCampaigns: async (): Promise<Campaign[]> => {
-    const response = await apiClient.get<ApiResponse<Campaign[]>>('/campaigns');
-    return response.data.data || [];
+    const response = await apiClient.get<ApiResponse<{ campaigns: Campaign[]; total: number; limit: number; offset: number }>>('/campaigns');
+    return response.data.data?.campaigns || [];
   },
 
   // Get single campaign by ID
@@ -34,11 +34,11 @@ export const campaignApi = {
       endTime: config.schedule?.endTime,
       timezone: config.schedule?.timezone,
     };
-    const response = await apiClient.post<{ campaign: Campaign }>('/campaigns', payload);
-    if (!response.data.campaign) {
+    const response = await apiClient.post<ApiResponse<Campaign>>('/campaigns', payload);
+    if (!response.data.data) {
       throw new Error('Failed to create campaign');
     }
-    return response.data.campaign;
+    return response.data.data;
   },
 
   // Update existing campaign

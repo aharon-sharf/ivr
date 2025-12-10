@@ -254,7 +254,10 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify(metrics),
+        body: JSON.stringify({
+          success: true,
+          data: metrics,
+        }),
       };
     } else if (path.includes('/system')) {
       // Get system-wide metrics
@@ -266,7 +269,10 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify(metrics),
+        body: JSON.stringify({
+          success: true,
+          data: metrics,
+        }),
       };
     } else {
       return {
@@ -275,7 +281,13 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'Invalid path. Use /campaigns/{id} or /system' }),
+        body: JSON.stringify({
+          success: false,
+          error: {
+            code: 'INVALID_PATH',
+            message: 'Invalid path. Use /campaigns/{id} or /system',
+          },
+        }),
       };
     }
   } catch (error) {
@@ -287,9 +299,13 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
-      body: JSON.stringify({ 
-        error: 'Failed to retrieve analytics',
-        message: error instanceof Error ? error.message : 'Unknown error',
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve analytics',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
       }),
     };
   }
