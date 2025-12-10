@@ -21,7 +21,7 @@ import {
 import { useAppDispatch } from '../store/hooks';
 import { addCampaign, setError } from '../store/slices/campaignSlice';
 import { campaignApi } from '../api/campaigns';
-import { CampaignConfig, TimeWindow, IVRFlowDefinition } from '../types';
+import { Campaign, TimeWindow, IVRFlowDefinition } from '../types';
 import { AudioManager } from '../components/AudioManager';
 import { IVRFlowBuilder } from '../components/IVRFlowBuilder';
 
@@ -35,14 +35,12 @@ export const CampaignCreatePage = () => {
   const [error, setErrorMessage] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState<CampaignConfig>({
+  const [formData, setFormData] = useState({
     name: '',
-    type: 'voice',
-    schedule: {
-      startTime: '',
-      endTime: '',
-      timezone: 'Asia/Jerusalem',
-    },
+    type: 'voice' as Campaign['type'],
+    startTime: '',
+    endTime: '',
+    timezone: 'Asia/Jerusalem',
     callingWindows: [
       {
         dayOfWeek: [0, 1, 2, 3, 4, 5, 6],
@@ -52,6 +50,7 @@ export const CampaignCreatePage = () => {
     ],
     audioFileUrl: '',
     smsTemplate: '',
+    ivrFlow: undefined as IVRFlowDefinition | undefined,
     maxConcurrentCalls: 100,
   });
 
@@ -89,15 +88,15 @@ export const CampaignCreatePage = () => {
         return true;
 
       case 2: // Schedule & Time Windows
-        if (!formData.schedule.startTime) {
+        if (!formData.startTime) {
           setErrorMessage('Start time is required');
           return false;
         }
-        if (!formData.schedule.endTime) {
+        if (!formData.endTime) {
           setErrorMessage('End time is required');
           return false;
         }
-        if (new Date(formData.schedule.startTime) >= new Date(formData.schedule.endTime)) {
+        if (new Date(formData.startTime) >= new Date(formData.endTime)) {
           setErrorMessage('End time must be after start time');
           return false;
         }
@@ -168,10 +167,14 @@ export const CampaignCreatePage = () => {
   const updateSchedule = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
-      schedule: {
-        ...prev.schedule,
-        [field]: value,
-      },
+      [field]: value,
+    }));
+  };
+
+  const updateIVRFlow = (flow: IVRFlowDefinition) => {
+    setFormData((prev) => ({
+      ...prev,
+      ivrFlow: flow,
     }));
   };
 
@@ -351,7 +354,7 @@ export const CampaignCreatePage = () => {
                 fullWidth
                 label="Start Time"
                 type="datetime-local"
-                value={formData.schedule.startTime}
+                value={formData.startTime}
                 onChange={(e) => updateSchedule('startTime', e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 required
@@ -362,7 +365,7 @@ export const CampaignCreatePage = () => {
                 fullWidth
                 label="End Time"
                 type="datetime-local"
-                value={formData.schedule.endTime}
+                value={formData.endTime}
                 onChange={(e) => updateSchedule('endTime', e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 required
@@ -372,7 +375,7 @@ export const CampaignCreatePage = () => {
               <FormControl fullWidth>
                 <InputLabel>Timezone</InputLabel>
                 <Select
-                  value={formData.schedule.timezone}
+                  value={formData.timezone}
                   label="Timezone"
                   onChange={(e) => updateSchedule('timezone', e.target.value)}
                 >
@@ -486,7 +489,7 @@ export const CampaignCreatePage = () => {
                   <IVRFlowBuilder
                     initialFlow={formData.ivrFlow}
                     onFlowChange={(flow: IVRFlowDefinition) => {
-                      updateFormData('ivrFlow', flow);
+                      updateIVRFlow(flow);
                     }}
                     onSave={(flow: IVRFlowDefinition) => {
                       updateFormData('ivrFlow', flow);
@@ -575,12 +578,12 @@ export const CampaignCreatePage = () => {
                   Schedule
                 </Typography>
                 <Typography variant="body2">
-                  Start: {new Date(formData.schedule.startTime).toLocaleString()}
+                  Start: {new Date(formData.startTime).toLocaleString()}
                 </Typography>
                 <Typography variant="body2">
-                  End: {new Date(formData.schedule.endTime).toLocaleString()}
+                  End: {new Date(formData.endTime).toLocaleString()}
                 </Typography>
-                <Typography variant="body2">Timezone: {formData.schedule.timezone}</Typography>
+                <Typography variant="body2">Timezone: {formData.timezone}</Typography>
               </Paper>
             </Grid>
             <Grid item xs={12}>

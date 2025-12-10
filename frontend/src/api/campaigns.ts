@@ -18,7 +18,7 @@ export const campaignApi = {
   },
 
   // Create new campaign
-  createCampaign: async (config: CampaignConfig): Promise<Campaign> => {
+  createCampaign: async (config: any): Promise<Campaign> => {
     const payload = {
       name: config.name,
       type: config.type,
@@ -28,11 +28,12 @@ export const campaignApi = {
         ivrFlow: config.ivrFlow,
         callingWindows: config.callingWindows,
         maxConcurrentCalls: config.maxConcurrentCalls,
+        maxAttemptsPerContact: config.maxAttemptsPerContact,
+        retryDelayMinutes: config.retryDelayMinutes,
       },
-      schedule: config.schedule,
-      startTime: config.schedule?.startTime,
-      endTime: config.schedule?.endTime,
-      timezone: config.schedule?.timezone,
+      startTime: config.startTime,
+      endTime: config.endTime,
+      timezone: config.timezone,
     };
     const response = await apiClient.post<ApiResponse<Campaign>>('/campaigns', payload);
     if (!response.data.data) {

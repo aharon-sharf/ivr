@@ -20,7 +20,7 @@ import { ArrowBack as BackIcon } from '@mui/icons-material';
 import { useAppDispatch } from '../store/hooks';
 import { updateCampaign as updateCampaignAction, setError } from '../store/slices/campaignSlice';
 import { campaignApi } from '../api/campaigns';
-import { Campaign, CampaignConfig, TimeWindow } from '../types';
+import { Campaign, TimeWindow } from '../types';
 
 export const CampaignEditPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +33,7 @@ export const CampaignEditPage = () => {
   const [error, setErrorMessage] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState<Partial<CampaignConfig>>({});
+  const [formData, setFormData] = useState<any>({});
 
   useEffect(() => {
     if (id) {
@@ -47,7 +47,14 @@ export const CampaignEditPage = () => {
       setIsLoading(true);
       const data = await campaignApi.getCampaign(campaignId);
       setCampaign(data);
-      setFormData(data.config);
+      setFormData({
+        name: data.name,
+        type: data.type,
+        startTime: data.startTime || '',
+        endTime: data.endTime || '',
+        timezone: data.timezone || 'UTC',
+        ...data.config,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load campaign';
       setErrorMessage(message);
@@ -68,12 +75,12 @@ export const CampaignEditPage = () => {
       return;
     }
 
-    if (!formData.schedule?.startTime || !formData.schedule?.endTime) {
+    if (!formData.startTime || !formData.endTime) {
       setErrorMessage('Start and end times are required');
       return;
     }
 
-    if (new Date(formData.schedule.startTime) >= new Date(formData.schedule.endTime)) {
+    if (new Date(formData.startTime) >= new Date(formData.endTime)) {
       setErrorMessage('End time must be after start time');
       return;
     }
@@ -81,7 +88,21 @@ export const CampaignEditPage = () => {
     try {
       setIsSubmitting(true);
       setErrorMessage('');
-      const updated = await campaignApi.updateCampaign(id, formData);
+      const updatePayload = {
+        name: formData.name,
+        type: formData.type,
+        config: {
+          audioFileUrl: formData.audioFileUrl,
+          smsTemplate: formData.smsTemplate,
+          ivrFlow: formData.ivrFlow,
+          callingWindows: formData.callingWindows,
+          maxConcurrentCalls: formData.maxConcurrentCalls,
+        },
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        timezone: formData.timezone,
+      };
+      const updated = await campaignApi.updateCampaign(id, updatePayload as any);
       dispatch(updateCampaignAction(updated));
       navigate(`/campaigns/${id}`);
     } catch (err) {
@@ -94,24 +115,21 @@ export const CampaignEditPage = () => {
   };
 
   const updateFormData = (field: string, value: unknown) => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       [field]: value,
     }));
   };
 
   const updateSchedule = (field: string, value: unknown) => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
-      schedule: {
-        ...prev.schedule!,
-        [field]: value,
-      },
+      [field]: value,
     }));
   };
 
   const updateCallingWindow = (index: number, field: keyof TimeWindow, value: unknown) => {
-    setFormData((prev) => {
+    setFormData((prev: any) => {
       const windows = [...(prev.callingWindows || [])];
       windows[index] = {
         ...windows[index],
@@ -125,7 +143,7 @@ export const CampaignEditPage = () => {
   };
 
   const addCallingWindow = () => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       callingWindows: [
         ...(prev.callingWindows || []),
@@ -139,9 +157,9 @@ export const CampaignEditPage = () => {
   };
 
   const removeCallingWindow = (index: number) => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
-      callingWindows: (prev.callingWindows || []).filter((_, i) => i !== index),
+      callingWindows: (prev.callingWindows || []).filter((_: any, i: number) => i !== index),
     }));
   };
 
@@ -248,7 +266,7 @@ export const CampaignEditPage = () => {
                   fullWidth
                   label="Start Time"
                   type="datetime-local"
-                  value={formData.schedule?.startTime || ''}
+                  value={formData.startTime || ''}
                   onChange={(e) => updateSchedule('startTime', e.target.value)}
                   InputLabelProps={{ shrink: true }}
                   required
@@ -259,7 +277,7 @@ export const CampaignEditPage = () => {
                   fullWidth
                   label="End Time"
                   type="datetime-local"
-                  value={formData.schedule?.endTime || ''}
+                  value={formData.endTime || ''}
                   onChange={(e) => updateSchedule('endTime', e.target.value)}
                   InputLabelProps={{ shrink: true }}
                   required
@@ -269,7 +287,7 @@ export const CampaignEditPage = () => {
                 <FormControl fullWidth>
                   <InputLabel>Timezone</InputLabel>
                   <Select
-                    value={formData.schedule?.timezone || 'Asia/Jerusalem'}
+                    value={formData.timezone || 'Asia/Jerusalem'}
                     label="Timezone"
                     onChange={(e) => updateSchedule('timezone', e.target.value)}
                   >
@@ -291,7 +309,7 @@ export const CampaignEditPage = () => {
                 </Box>
               </Grid>
 
-              {(formData.callingWindows || []).map((window, index) => (
+              {(formData.callingWindows || []).map((window: any, index: number) => (
                 <Grid item xs={12} key={index}>
                   <Paper sx={{ p: 2 }} variant="outlined">
                     <Grid container spacing={2}>
@@ -316,7 +334,7 @@ export const CampaignEditPage = () => {
                               label={getDayName(day)}
                               onClick={() => {
                                 const days = window.dayOfWeek.includes(day)
-                                  ? window.dayOfWeek.filter((d) => d !== day)
+                                  ? window.dayOfWeek.filter((d: number) => d !== day)
                                   : [...window.dayOfWeek, day].sort();
                                 updateCallingWindow(index, 'dayOfWeek', days);
                               }}

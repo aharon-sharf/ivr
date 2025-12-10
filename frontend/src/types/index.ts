@@ -5,20 +5,22 @@ export interface Campaign {
   type: 'voice' | 'sms' | 'hybrid';
   status: 'draft' | 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
   config: CampaignConfig;
+  startTime?: string;
+  endTime?: string;
+  timezone: string;
   createdAt: string;
   updatedAt: string;
   createdBy: string;
 }
 
 export interface CampaignConfig {
-  name: string;
-  type: 'voice' | 'sms' | 'hybrid';
   audioFileUrl?: string;
   smsTemplate?: string;
   ivrFlow?: IVRFlowDefinition;
-  schedule: Schedule;
   callingWindows: TimeWindow[];
   maxConcurrentCalls?: number;
+  maxAttemptsPerContact?: number;
+  retryDelayMinutes?: number;
 }
 
 export interface Schedule {

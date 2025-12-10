@@ -287,7 +287,7 @@ export const CampaignDetailPage = () => {
                       Start Time
                     </Typography>
                     <Typography variant="body1">
-                      {format(new Date(campaign.config.schedule.startTime), 'PPpp')}
+                      {campaign.startTime ? format(new Date(campaign.startTime), 'PPpp') : 'Not set'}
                     </Typography>
                   </Box>
                   <Box>
@@ -295,14 +295,14 @@ export const CampaignDetailPage = () => {
                       End Time
                     </Typography>
                     <Typography variant="body1">
-                      {format(new Date(campaign.config.schedule.endTime), 'PPpp')}
+                      {campaign.endTime ? format(new Date(campaign.endTime), 'PPpp') : 'Not set'}
                     </Typography>
                   </Box>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
                       Timezone
                     </Typography>
-                    <Typography variant="body1">{campaign.config.schedule.timezone}</Typography>
+                    <Typography variant="body1">{campaign.timezone || 'UTC'}</Typography>
                   </Box>
                 </Box>
               </CardContent>
