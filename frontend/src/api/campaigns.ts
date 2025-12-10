@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Campaign, CampaignConfig, ApiResponse, Contact } from '../types';
+import { Campaign, ApiResponse, Contact, IVRFlowDefinition, TimeWindow } from '../types';
 
 export const campaignApi = {
   // Get all campaigns
@@ -18,7 +18,20 @@ export const campaignApi = {
   },
 
   // Create new campaign
-  createCampaign: async (config: any): Promise<Campaign> => {
+  createCampaign: async (config: {
+    name: string;
+    type: Campaign['type'];
+    startTime: string;
+    endTime: string;
+    timezone: string;
+    audioFileUrl?: string;
+    smsTemplate?: string;
+    ivrFlow?: IVRFlowDefinition;
+    callingWindows: TimeWindow[];
+    maxConcurrentCalls?: number;
+    maxAttemptsPerContact?: number;
+    retryDelayMinutes?: number;
+  }): Promise<Campaign> => {
     const payload = {
       name: config.name,
       type: config.type,
@@ -43,7 +56,20 @@ export const campaignApi = {
   },
 
   // Update existing campaign
-  updateCampaign: async (id: string, config: Partial<CampaignConfig>): Promise<Campaign> => {
+  updateCampaign: async (id: string, config: {
+    name?: string;
+    type?: Campaign['type'];
+    config?: Partial<{
+      audioFileUrl?: string;
+      smsTemplate?: string;
+      ivrFlow?: IVRFlowDefinition;
+      callingWindows?: TimeWindow[];
+      maxConcurrentCalls?: number;
+    }>;
+    startTime?: string;
+    endTime?: string;
+    timezone?: string;
+  }): Promise<Campaign> => {
     const response = await apiClient.put<ApiResponse<Campaign>>(`/campaigns/${id}`, config);
     if (!response.data.data) {
       throw new Error('Failed to update campaign');

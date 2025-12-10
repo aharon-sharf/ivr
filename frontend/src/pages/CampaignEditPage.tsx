@@ -20,7 +20,22 @@ import { ArrowBack as BackIcon } from '@mui/icons-material';
 import { useAppDispatch } from '../store/hooks';
 import { updateCampaign as updateCampaignAction, setError } from '../store/slices/campaignSlice';
 import { campaignApi } from '../api/campaigns';
-import { Campaign, TimeWindow } from '../types';
+import { Campaign, TimeWindow, IVRFlowDefinition } from '../types';
+
+interface CampaignFormData {
+  name: string;
+  type: Campaign['type'];
+  startTime: string;
+  endTime: string;
+  timezone: string;
+  audioFileUrl?: string;
+  smsTemplate?: string;
+  ivrFlow?: IVRFlowDefinition;
+  callingWindows: TimeWindow[];
+  maxConcurrentCalls?: number;
+  maxAttemptsPerContact?: number;
+  retryDelayMinutes?: number;
+}
 
 export const CampaignEditPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +48,14 @@ export const CampaignEditPage = () => {
   const [error, setErrorMessage] = useState('');
 
   // Form state
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<CampaignFormData>({
+    name: '',
+    type: 'voice',
+    startTime: '',
+    endTime: '',
+    timezone: 'UTC',
+    callingWindows: [],
+  });
 
   useEffect(() => {
     if (id) {
@@ -102,7 +124,7 @@ export const CampaignEditPage = () => {
         endTime: formData.endTime,
         timezone: formData.timezone,
       };
-      const updated = await campaignApi.updateCampaign(id, updatePayload as any);
+      const updated = await campaignApi.updateCampaign(id, updatePayload);
       dispatch(updateCampaignAction(updated));
       navigate(`/campaigns/${id}`);
     } catch (err) {
@@ -114,23 +136,23 @@ export const CampaignEditPage = () => {
     }
   };
 
-  const updateFormData = (field: string, value: unknown) => {
-    setFormData((prev: any) => ({
+  const updateFormData = (field: keyof CampaignFormData, value: unknown) => {
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const updateSchedule = (field: string, value: unknown) => {
-    setFormData((prev: any) => ({
+  const updateSchedule = (field: keyof CampaignFormData, value: unknown) => {
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
   const updateCallingWindow = (index: number, field: keyof TimeWindow, value: unknown) => {
-    setFormData((prev: any) => {
-      const windows = [...(prev.callingWindows || [])];
+    setFormData((prev) => {
+      const windows = [...prev.callingWindows];
       windows[index] = {
         ...windows[index],
         [field]: value,
@@ -143,10 +165,10 @@ export const CampaignEditPage = () => {
   };
 
   const addCallingWindow = () => {
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
       callingWindows: [
-        ...(prev.callingWindows || []),
+        ...prev.callingWindows,
         {
           dayOfWeek: [0, 1, 2, 3, 4, 5, 6],
           startHour: 9,
@@ -157,9 +179,9 @@ export const CampaignEditPage = () => {
   };
 
   const removeCallingWindow = (index: number) => {
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
-      callingWindows: (prev.callingWindows || []).filter((_: any, i: number) => i !== index),
+      callingWindows: prev.callingWindows.filter((_, i) => i !== index),
     }));
   };
 
@@ -309,7 +331,7 @@ export const CampaignEditPage = () => {
                 </Box>
               </Grid>
 
-              {(formData.callingWindows || []).map((window: any, index: number) => (
+              {formData.callingWindows.map((window, index) => (
                 <Grid item xs={12} key={index}>
                   <Paper sx={{ p: 2 }} variant="outlined">
                     <Grid container spacing={2}>
