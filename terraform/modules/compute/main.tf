@@ -218,7 +218,17 @@ resource "aws_lambda_function" "campaign_orchestrator" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT                     = var.environment
+      DB_SECRET_ARN                   = var.rds_master_secret_arn
+      RDS_PROXY_ENDPOINT              = var.rds_proxy_endpoint
+      DB_PORT                         = "5432"
+      DB_NAME                         = var.rds_database_name
+      DB_USER                         = var.rds_username
+      REDIS_ENDPOINT                  = aws_instance.asterisk.private_ip
+      REDIS_PORT                      = "6379"
+      VOICE_CAMPAIGN_STATE_MACHINE_ARN = var.step_functions_state_machine_arn
+      SMS_DISPATCHER_FUNCTION_NAME    = aws_lambda_function.sms_dispatcher.function_name
+      AWS_REGION                      = data.aws_region.current.name
     }
   }
 
@@ -262,6 +272,38 @@ resource "aws_lambda_function" "dialer_worker" {
     variables = {
       ENVIRONMENT = var.environment
     }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_lambda_function" "sms_dispatcher" {
+  function_name = "sms-dispatcher-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/sms-dispatcher:latest"
+  timeout       = 300
+  memory_size   = 1024
+
+  environment {
+    variables = {
+      ENVIRONMENT        = var.environment
+      DB_SECRET_ARN      = var.rds_master_secret_arn
+      RDS_PROXY_ENDPOINT = var.rds_proxy_endpoint
+      DB_PORT            = "5432"
+      DB_NAME            = var.rds_database_name
+      DB_USER            = var.rds_username
+      AWS_REGION         = data.aws_region.current.name
+    }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags

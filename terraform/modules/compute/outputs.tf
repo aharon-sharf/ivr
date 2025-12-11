@@ -30,6 +30,11 @@ output "campaign_orchestrator_lambda_arn" {
   value       = aws_lambda_function.campaign_orchestrator.arn
 }
 
+output "sms_dispatcher_lambda_arn" {
+  description = "SMS Dispatcher Lambda ARN"
+  value       = aws_lambda_function.sms_dispatcher.arn
+}
+
 output "enrich_dial_task_lambda_arn" {
   description = "Enrich Dial Task Lambda ARN"
   value       = aws_lambda_function.enrich_dial_task.arn

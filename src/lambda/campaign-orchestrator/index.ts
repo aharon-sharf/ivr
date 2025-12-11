@@ -18,6 +18,7 @@ import { Context } from 'aws-lambda';
 import { Pool } from 'pg';
 import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { createClient, RedisClientType } from 'redis';
 
 // PostgreSQL connection pool
@@ -32,15 +33,21 @@ let lambdaClient: LambdaClient | null = null;
 // Redis client for resource tracking
 let redisClient: RedisClientType | null = null;
 
+// Secrets Manager client
+let secretsClient: SecretsManagerClient | null = null;
+
+// Cache for database password
+let cachedDbPassword: string | null = null;
+
 // Configuration
-const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_SECRET_ARN = process.env.DB_SECRET_ARN || '';
+const RDS_PROXY_ENDPOINT = process.env.RDS_PROXY_ENDPOINT || 'localhost';
 const DB_PORT = parseInt(process.env.DB_PORT || '5432');
 const DB_NAME = process.env.DB_NAME || 'campaigns';
 const DB_USER = process.env.DB_USER || 'postgres';
-const DB_PASSWORD = process.env.DB_PASSWORD || '';
 const VOICE_CAMPAIGN_STATE_MACHINE_ARN = process.env.VOICE_CAMPAIGN_STATE_MACHINE_ARN || '';
 const SMS_DISPATCHER_FUNCTION_NAME = process.env.SMS_DISPATCHER_FUNCTION_NAME || '';
-const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+const REDIS_ENDPOINT = process.env.REDIS_ENDPOINT || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
@@ -86,19 +93,55 @@ interface ResourceUtilization {
 }
 
 /**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPassword) {
+    return cachedDbPassword;
+  }
+
+  if (!secretsClient) {
+    secretsClient = new SecretsManagerClient({ region: AWS_REGION });
+  }
+
+  try {
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: DB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedDbPassword = secret.password as string;
+      console.log('Database password retrieved successfully');
+      return cachedDbPassword;
+    }
+    
+    throw new Error('No password found in secret');
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw new Error(`Failed to retrieve database password: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * Initialize PostgreSQL connection pool
  */
-function getPool(): Pool {
+async function getPool(): Promise<Pool> {
   if (!pool) {
+    const password = await getDbPassword();
+    
     pool = new Pool({
-      host: DB_HOST,
+      host: RDS_PROXY_ENDPOINT,
       port: DB_PORT,
       database: DB_NAME,
       user: DB_USER,
-      password: DB_PASSWORD,
+      password,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
+      ssl: {
+        rejectUnauthorized: false
+      }
     });
     console.log('PostgreSQL pool initialized');
   }
@@ -134,7 +177,7 @@ async function getRedisClient(): Promise<RedisClientType> {
   if (!redisClient) {
     redisClient = createClient({
       socket: {
-        host: REDIS_HOST,
+        host: REDIS_ENDPOINT,
         port: REDIS_PORT,
       },
     });
@@ -154,7 +197,7 @@ async function getRedisClient(): Promise<RedisClientType> {
  * Get campaign by ID
  */
 async function getCampaign(campaignId: string): Promise<Campaign | null> {
-  const dbPool = getPool();
+  const dbPool = await getPool();
   const query = 'SELECT * FROM campaigns WHERE id = $1';
   const result = await dbPool.query(query, [campaignId]);
   
@@ -181,7 +224,7 @@ async function getCampaign(campaignId: string): Promise<Campaign | null> {
  * type should execute independently without resource conflicts.
  */
 async function getResourceUtilization(): Promise<ResourceUtilization> {
-  const dbPool = getPool();
+  const dbPool = await getPool();
   
   // Count active voice campaigns
   const voiceQuery = `
@@ -302,7 +345,7 @@ async function updateCampaignStatus(
   campaignId: string,
   status: string
 ): Promise<void> {
-  const dbPool = getPool();
+  const dbPool = await getPool();
   
   const query = `
     UPDATE campaigns

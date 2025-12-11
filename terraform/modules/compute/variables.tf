@@ -90,6 +90,11 @@ variable "rds_master_secret_arn" {
   type        = string
 }
 
+variable "step_functions_state_machine_arn" {
+  description = "ARN of the Step Functions state machine for campaign execution"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

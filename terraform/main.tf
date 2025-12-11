@@ -143,6 +143,9 @@ module "compute" {
   audio_files_bucket = module.storage.audio_files_bucket
   ml_models_bucket   = module.storage.ml_models_bucket
 
+  # Step Functions
+  step_functions_state_machine_arn = module.orchestration.state_machine_arn
+
   tags = local.common_tags
 }
 
