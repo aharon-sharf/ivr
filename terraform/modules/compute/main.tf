@@ -228,7 +228,6 @@ resource "aws_lambda_function" "campaign_orchestrator" {
       REDIS_PORT                       = "6379"
       VOICE_CAMPAIGN_STATE_MACHINE_ARN = var.step_functions_state_machine_arn
       SMS_DISPATCHER_FUNCTION_NAME     = aws_lambda_function.sms_dispatcher.function_name
-      AWS_REGION                       = data.aws_region.current.name
     }
   }
 
@@ -297,7 +296,6 @@ resource "aws_lambda_function" "sms_dispatcher" {
       DB_PORT            = "5432"
       DB_NAME            = var.rds_database_name
       DB_USER            = var.rds_username
-      AWS_REGION         = data.aws_region.current.name
     }
   }
 
