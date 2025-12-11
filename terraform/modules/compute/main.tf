@@ -218,17 +218,17 @@ resource "aws_lambda_function" "campaign_orchestrator" {
 
   environment {
     variables = {
-      ENVIRONMENT                     = var.environment
-      DB_SECRET_ARN                   = var.rds_master_secret_arn
-      RDS_PROXY_ENDPOINT              = var.rds_proxy_endpoint
-      DB_PORT                         = "5432"
-      DB_NAME                         = var.rds_database_name
-      DB_USER                         = var.rds_username
-      REDIS_ENDPOINT                  = aws_instance.asterisk.private_ip
-      REDIS_PORT                      = "6379"
+      ENVIRONMENT                      = var.environment
+      DB_SECRET_ARN                    = var.rds_master_secret_arn
+      RDS_PROXY_ENDPOINT               = var.rds_proxy_endpoint
+      DB_PORT                          = "5432"
+      DB_NAME                          = var.rds_database_name
+      DB_USER                          = var.rds_username
+      REDIS_ENDPOINT                   = aws_instance.asterisk.private_ip
+      REDIS_PORT                       = "6379"
       VOICE_CAMPAIGN_STATE_MACHINE_ARN = var.step_functions_state_machine_arn
-      SMS_DISPATCHER_FUNCTION_NAME    = aws_lambda_function.sms_dispatcher.function_name
-      AWS_REGION                      = data.aws_region.current.name
+      SMS_DISPATCHER_FUNCTION_NAME     = aws_lambda_function.sms_dispatcher.function_name
+      AWS_REGION                       = data.aws_region.current.name
     }
   }
 
