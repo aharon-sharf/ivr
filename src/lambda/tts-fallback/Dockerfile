@@ -1,6 +1,6 @@
 # TTS Fallback Lambda Dockerfile
 # Build stage
-FROM public.ecr.aws/lambda/nodejs:18 AS builder
+FROM public.ecr.aws/lambda/nodejs:20 AS builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ COPY tsconfig.lambda.json ./
 RUN npx tsc -p tsconfig.lambda.json
 
 # Production stage
-FROM public.ecr.aws/lambda/nodejs:18
+FROM public.ecr.aws/lambda/nodejs:20
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 

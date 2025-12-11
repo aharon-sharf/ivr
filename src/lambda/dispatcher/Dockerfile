@@ -1,6 +1,6 @@
 # Dispatcher Lambda Dockerfile
 # Build stage
-FROM public.ecr.aws/lambda/nodejs:18 AS builder
+FROM public.ecr.aws/lambda/nodejs:20 AS builder
 
 WORKDIR /build
 
@@ -8,7 +8,7 @@ WORKDIR /build
 COPY package*.json ./
 
 # Install all dependencies for build
-RUN npm ci
+RUN npm ci --no-audit --no-fund --prefer-offline
 
 # Copy source and config
 COPY src/lambda/dispatcher/ ./src/lambda/dispatcher/
@@ -20,7 +20,7 @@ COPY tsconfig.lambda.json ./
 RUN npx tsc -p tsconfig.lambda.json
 
 # Production stage
-FROM public.ecr.aws/lambda/nodejs:18
+FROM public.ecr.aws/lambda/nodejs:20
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
@@ -28,7 +28,7 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production
+RUN npm ci --only=production --no-audit --no-fund --prefer-offline
 
 # Copy compiled code
 COPY --from=builder /build/dist/ ./dist/

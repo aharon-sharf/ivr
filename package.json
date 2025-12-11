@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Mass Voice Campaign System - Enterprise-grade outbound voice campaign platform",
   "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -44,7 +47,6 @@
     "@vonage/server-sdk": "^3.10.0",
     "aws-jwt-verify": "^4.0.1",
     "axios": "^1.6.2",
-    "crypto": "^1.0.1",
     "dotenv": "^16.3.1",
     "mongodb": "^6.3.0",
     "pg": "^8.11.3",
