@@ -80,22 +80,30 @@ export const BlacklistManagementPage = () => {
     try {
       setLoading(true);
       const params: Record<string, string | number> = {
-        page: page + 1,
+        offset: page * rowsPerPage,
         limit: rowsPerPage,
       };
 
-      if (searchQuery) {
-        params.search = searchQuery;
-      }
+      // Note: Backend doesn't support search and source filtering yet
+      // TODO: Implement search and source filtering in backend
+      // if (searchQuery) {
+      //   params.search = searchQuery;
+      // }
 
-      if (sourceFilter !== 'all') {
-        params.source = sourceFilter;
-      }
+      // if (sourceFilter !== 'all') {
+      //   params.source = sourceFilter;
+      // }
 
       const response = await getBlacklist(params);
       if (response.success && response.data) {
-        setEntries(response.data.entries);
-        setTotal(response.data.total);
+        setEntries(response.data.entries || []);
+        setTotal(response.data.total || 0);
+      } else {
+        setEntries([]);
+        setTotal(0);
+        if (response.error) {
+          showSnackbar(response.error, 'error');
+        }
       }
     } catch (error) {
       showSnackbar('Failed to load blacklist', 'error');
@@ -108,7 +116,7 @@ export const BlacklistManagementPage = () => {
   useEffect(() => {
     loadBlacklist();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, searchQuery, sourceFilter]);
+  }, [page, rowsPerPage]);
 
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info') => {
     setSnackbar({ open: true, message, severity });
@@ -313,8 +321,11 @@ export const BlacklistManagementPage = () => {
           </Box>
         </Paper>
 
-        {/* Search and Filter */}
+        {/* Search and Filter - Temporarily disabled until backend support is added */}
         <Paper sx={{ p: 2, mb: 3 }}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Search and filtering functionality will be available in a future update.
+          </Alert>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <TextField
               label="Search Phone Number"
@@ -322,10 +333,12 @@ export const BlacklistManagementPage = () => {
               size="small"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               sx={{ flexGrow: 1 }}
+              disabled
+              helperText="Coming soon"
             />
-            <FormControl size="small" sx={{ minWidth: 200 }}>
+            <FormControl size="small" sx={{ minWidth: 200 }} disabled>
               <InputLabel>Source</InputLabel>
               <Select
                 value={sourceFilter}
@@ -342,6 +355,7 @@ export const BlacklistManagementPage = () => {
               variant="contained"
               startIcon={<SearchIcon />}
               onClick={handleSearch}
+              disabled
             >
               Search
             </Button>

@@ -22,17 +22,25 @@ export interface BlacklistExportOptions {
  * Get all blacklist entries with optional pagination and filtering
  */
 export const getBlacklist = async (params?: {
-  page?: number;
+  offset?: number;
   limit?: number;
   search?: string;
   source?: string;
 }): Promise<ApiResponse<{ entries: BlacklistEntry[]; total: number }>> => {
-  const response = await apiClient.get('/blacklist', { params });
-  // Backend returns data directly, wrap it in ApiResponse structure
-  return {
-    success: true,
-    data: response.data
-  };
+  try {
+    const response = await apiClient.get('/blacklist', { params });
+    // Backend returns data directly, wrap it in ApiResponse structure
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('Error fetching blacklist:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch blacklist'
+    };
+  }
 };
 
 /**
