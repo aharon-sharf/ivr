@@ -330,7 +330,7 @@ data "aws_ami" "amazon_linux_2" {
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-2023.*-x86_64"]
   }
 
   filter {
@@ -590,21 +590,20 @@ resource "aws_instance" "asterisk" {
               set -e
               
               # Update system
-              yum update -y
+              dnf update -y
               
               # Install basic tools
-              yum install -y wget curl git vim htop
+              dnf install -y wget curl git vim htop
               
               # Install CloudWatch agent
               wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
-              rpm -U ./amazon-cloudwatch-agent.rpm
+              dnf install -y ./amazon-cloudwatch-agent.rpm
               
-              # Install Node.js 18
-              curl -sL https://rpm.nodesource.com/setup_18.x | bash -
-              yum install -y nodejs
+              # Install Node.js latest
+              dnf install -y nodejs
               
               # Install Redis (will be configured by Ansible)
-              amazon-linux-extras install redis6 -y || yum install -y redis
+              dnf install -y redis
               
               # Create application directory
               mkdir -p /opt/asterisk-worker
