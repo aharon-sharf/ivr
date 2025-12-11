@@ -8,6 +8,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda
 import { CampaignService } from './services/CampaignService';
 import { ContactService } from './services/ContactService';
 import { BlacklistService } from './services/BlacklistService';
+import { CampaignOrchestrationService } from './services/CampaignOrchestrationService';
 import { authenticateRequest, AuthenticatedUser } from './middleware/auth';
 import { validateRequest } from './middleware/validation';
 import { errorResponse, successResponse } from './utils/response';
@@ -16,6 +17,7 @@ import { errorResponse, successResponse } from './utils/response';
 const campaignService = new CampaignService();
 const contactService = new ContactService();
 const blacklistService = new BlacklistService();
+const orchestrationService = new CampaignOrchestrationService();
 
 /**
  * Main Lambda handler
@@ -104,6 +106,18 @@ async function handleCampaignRoutes(
       } else if (pathParts.length === 3 && campaignId && subResource === 'contacts') {
         // POST /campaigns/{id}/contacts - Create contact for campaign
         return await createContactForCampaign(campaignId, event, user);
+      } else if (pathParts.length === 3 && campaignId && subResource === 'start') {
+        // POST /campaigns/{id}/start - Start campaign immediately
+        return await startCampaign(campaignId, user);
+      } else if (pathParts.length === 3 && campaignId && subResource === 'schedule') {
+        // POST /campaigns/{id}/schedule - Schedule campaign for future execution
+        return await scheduleCampaign(campaignId, event, user);
+      } else if (pathParts.length === 3 && campaignId && subResource === 'pause') {
+        // POST /campaigns/{id}/pause - Pause active campaign
+        return await pauseCampaign(campaignId, user);
+      } else if (pathParts.length === 3 && campaignId && subResource === 'resume') {
+        // POST /campaigns/{id}/resume - Resume paused campaign
+        return await resumeCampaign(campaignId, user);
       }
       break;
 
@@ -287,6 +301,193 @@ async function deleteCampaign(
     return successResponse(200, null, 'Campaign deleted successfully');
   } catch (error) {
     console.error('Error deleting campaign:', error);
+    throw error;
+  }
+}
+
+/**
+ * Start a campaign immediately
+ * Requires CampaignManager or Administrator role
+ */
+async function startCampaign(
+  campaignId: string,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can start campaigns'
+    );
+  }
+
+  try {
+    // Get campaign to validate it exists and is in correct state
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign) {
+      return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
+    }
+
+    // Check if campaign can be started
+    if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+      return errorResponse(
+        400,
+        'INVALID_STATE',
+        `Campaign cannot be started from status '${campaign.status}'. Must be 'draft' or 'scheduled'.`
+      );
+    }
+
+    // Start the campaign via orchestration service
+    const result = await orchestrationService.startCampaign(campaignId);
+    
+    return successResponse(200, result, 'Campaign started successfully');
+  } catch (error) {
+    console.error('Error starting campaign:', error);
+    if (error instanceof Error && error.message.includes('validation')) {
+      return errorResponse(400, 'VALIDATION_ERROR', error.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Schedule a campaign for future execution
+ * Requires CampaignManager or Administrator role
+ */
+async function scheduleCampaign(
+  campaignId: string,
+  event: APIGatewayProxyEvent,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can schedule campaigns'
+    );
+  }
+
+  try {
+    const body = JSON.parse(event.body || '{}');
+    
+    // Get campaign to validate it exists
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign) {
+      return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
+    }
+
+    // Check if campaign can be scheduled
+    if (campaign.status !== 'draft') {
+      return errorResponse(
+        400,
+        'INVALID_STATE',
+        `Campaign cannot be scheduled from status '${campaign.status}'. Must be 'draft'.`
+      );
+    }
+
+    // Use startTime from request body or campaign's existing startTime
+    const startTime = body.startTime || campaign.startTime;
+    if (!startTime) {
+      return errorResponse(400, 'VALIDATION_ERROR', 'Start time is required for scheduling');
+    }
+
+    // Schedule the campaign
+    const result = await orchestrationService.scheduleCampaign(campaignId, startTime);
+    
+    return successResponse(200, result, 'Campaign scheduled successfully');
+  } catch (error) {
+    console.error('Error scheduling campaign:', error);
+    if (error instanceof Error && error.message.includes('validation')) {
+      return errorResponse(400, 'VALIDATION_ERROR', error.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Pause an active campaign
+ * Requires CampaignManager or Administrator role
+ */
+async function pauseCampaign(
+  campaignId: string,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can pause campaigns'
+    );
+  }
+
+  try {
+    // Get campaign to validate it exists and is in correct state
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign) {
+      return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
+    }
+
+    // Check if campaign can be paused
+    if (campaign.status !== 'active') {
+      return errorResponse(
+        400,
+        'INVALID_STATE',
+        `Campaign cannot be paused from status '${campaign.status}'. Must be 'active'.`
+      );
+    }
+
+    // Pause the campaign
+    const result = await orchestrationService.pauseCampaign(campaignId);
+    
+    return successResponse(200, result, 'Campaign paused successfully');
+  } catch (error) {
+    console.error('Error pausing campaign:', error);
+    throw error;
+  }
+}
+
+/**
+ * Resume a paused campaign
+ * Requires CampaignManager or Administrator role
+ */
+async function resumeCampaign(
+  campaignId: string,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can resume campaigns'
+    );
+  }
+
+  try {
+    // Get campaign to validate it exists and is in correct state
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign) {
+      return errorResponse(404, 'NOT_FOUND', 'Campaign not found');
+    }
+
+    // Check if campaign can be resumed
+    if (campaign.status !== 'paused') {
+      return errorResponse(
+        400,
+        'INVALID_STATE',
+        `Campaign cannot be resumed from status '${campaign.status}'. Must be 'paused'.`
+      );
+    }
+
+    // Resume the campaign
+    const result = await orchestrationService.resumeCampaign(campaignId);
+    
+    return successResponse(200, result, 'Campaign resumed successfully');
+  } catch (error) {
+    console.error('Error resuming campaign:', error);
     throw error;
   }
 }

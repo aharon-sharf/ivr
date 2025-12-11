@@ -21,6 +21,7 @@ import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Upload as UploadIcon,
+  Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { useAppDispatch } from '../store/hooks';
 import { setSelectedCampaign, setError, removeCampaign, updateCampaign } from '../store/slices/campaignSlice';
@@ -103,6 +104,34 @@ export const CampaignDetailPage = () => {
     }
   };
 
+  const handleStart = async () => {
+    if (!campaign) return;
+
+    try {
+      const updated = await campaignApi.startCampaign(campaign.id);
+      setCampaign(updated);
+      dispatch(updateCampaign(updated));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start campaign';
+      setErrorMessage(message);
+      dispatch(setError(message));
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!campaign) return;
+
+    try {
+      const updated = await campaignApi.scheduleCampaign(campaign.id);
+      setCampaign(updated);
+      dispatch(updateCampaign(updated));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to schedule campaign';
+      setErrorMessage(message);
+      dispatch(setError(message));
+    }
+  };
+
   const getStatusColor = (status: Campaign['status']) => {
     const colors: Record<Campaign['status'], 'default' | 'primary' | 'success' | 'warning' | 'error'> = {
       draft: 'default',
@@ -171,6 +200,16 @@ export const CampaignDetailPage = () => {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
+              {campaign.status === 'draft' && (
+                <>
+                  <Button variant="contained" startIcon={<PlayIcon />} onClick={handleStart} color="primary">
+                    Start Now
+                  </Button>
+                  <Button variant="outlined" startIcon={<ScheduleIcon />} onClick={handleSchedule} color="secondary">
+                    Schedule
+                  </Button>
+                </>
+              )}
               {campaign.status === 'active' && (
                 <Button variant="outlined" startIcon={<PauseIcon />} onClick={handlePause}>
                   Pause

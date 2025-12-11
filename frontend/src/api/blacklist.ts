@@ -29,11 +29,8 @@ export const getBlacklist = async (params?: {
 }): Promise<ApiResponse<{ entries: BlacklistEntry[]; total: number }>> => {
   try {
     const response = await apiClient.get('/blacklist', { params });
-    // Backend returns data directly, wrap it in ApiResponse structure
-    return {
-      success: true,
-      data: response.data
-    };
+    // Backend already returns ApiResponse structure, return it directly
+    return response.data;
   } catch (error) {
     console.error('Error fetching blacklist:', error);
     return {
@@ -56,11 +53,8 @@ export const addToBlacklist = async (
     reason,
     source,
   });
-  // Backend returns data directly, wrap it in ApiResponse structure
-  return {
-    success: true,
-    data: response.data
-  };
+  // Backend already returns ApiResponse structure, return it directly
+  return response.data;
 };
 
 /**

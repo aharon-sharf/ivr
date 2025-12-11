@@ -30,6 +30,11 @@ variable "report_generator_lambda_arn" {
   type        = string
 }
 
+variable "campaign_orchestrator_lambda_arn" {
+  description = "Campaign Orchestrator Lambda ARN"
+  type        = string
+}
+
 variable "dial_tasks_queue_arn" {
   description = "Dial tasks SQS queue ARN"
   type        = string

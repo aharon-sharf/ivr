@@ -42,18 +42,19 @@ resource "aws_lambda_function" "api_handler" {
 
   environment {
     variables = {
-      ENVIRONMENT           = var.environment
-      RDS_PROXY_ENDPOINT    = var.rds_proxy_endpoint
-      DB_PORT               = "5432"
-      DB_NAME               = var.rds_database_name
-      DB_USER               = var.rds_username
-      DB_SECRET_ARN         = var.rds_master_secret_arn
-      REDIS_ENDPOINT        = aws_instance.asterisk.private_ip
-      REDIS_PORT            = "6379"
-      REDIS_PASSWORD_SECRET = aws_secretsmanager_secret.redis_password.arn
-      COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
-      COGNITO_CLIENT_ID     = var.cognito_client_id
-      COGNITO_REGION        = data.aws_region.current.name
+      ENVIRONMENT                      = var.environment
+      RDS_PROXY_ENDPOINT               = var.rds_proxy_endpoint
+      DB_PORT                          = "5432"
+      DB_NAME                          = var.rds_database_name
+      DB_USER                          = var.rds_username
+      DB_SECRET_ARN                    = var.rds_master_secret_arn
+      REDIS_ENDPOINT                   = aws_instance.asterisk.private_ip
+      REDIS_PORT                       = "6379"
+      REDIS_PASSWORD_SECRET            = aws_secretsmanager_secret.redis_password.arn
+      COGNITO_USER_POOL_ID             = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID                = var.cognito_client_id
+      COGNITO_REGION                   = data.aws_region.current.name
+      CAMPAIGN_ORCHESTRATOR_LAMBDA_ARN = aws_lambda_function.campaign_orchestrator.arn
     }
   }
 

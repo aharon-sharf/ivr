@@ -97,6 +97,25 @@ resource "aws_iam_role_policy" "lambda_execution" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutRule",
+          "events:PutTargets",
+          "events:DeleteRule",
+          "events:RemoveTargets",
+          "events:EnableRule",
+          "events:DisableRule"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -173,6 +192,27 @@ resource "aws_lambda_function" "report_generator" {
   role          = aws_iam_role.lambda_execution.arn
   package_type  = "Image"
   image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/report-generator:latest"
+  timeout       = 300
+  memory_size   = 1024
+
+  environment {
+    variables = {
+      ENVIRONMENT = var.environment
+    }
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
+}
+
+resource "aws_lambda_function" "campaign_orchestrator" {
+  function_name = "campaign-orchestrator-${var.environment}"
+  role          = aws_iam_role.lambda_execution.arn
+  package_type  = "Image"
+  image_uri     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/campaign-orchestrator:latest"
   timeout       = 300
   memory_size   = 1024
 

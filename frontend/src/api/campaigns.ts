@@ -100,6 +100,25 @@ export const campaignApi = {
     return response.data.data;
   },
 
+  // Start campaign immediately
+  startCampaign: async (id: string): Promise<Campaign> => {
+    const response = await apiClient.post<ApiResponse<Campaign>>(`/campaigns/${id}/start`);
+    if (!response.data.data) {
+      throw new Error('Failed to start campaign');
+    }
+    return response.data.data;
+  },
+
+  // Schedule campaign for future execution
+  scheduleCampaign: async (id: string, startTime?: string): Promise<Campaign> => {
+    const payload = startTime ? { startTime } : {};
+    const response = await apiClient.post<ApiResponse<Campaign>>(`/campaigns/${id}/schedule`, payload);
+    if (!response.data.data) {
+      throw new Error('Failed to schedule campaign');
+    }
+    return response.data.data;
+  },
+
   // Create contact for campaign
   createContact: async (campaignId: string, contactData: { phoneNumber: string }): Promise<Contact> => {
     const response = await apiClient.post<ApiResponse<Contact>>(

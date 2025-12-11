@@ -25,6 +25,11 @@ output "report_generator_lambda_arn" {
   value       = aws_lambda_function.report_generator.arn
 }
 
+output "campaign_orchestrator_lambda_arn" {
+  description = "Campaign Orchestrator Lambda ARN"
+  value       = aws_lambda_function.campaign_orchestrator.arn
+}
+
 output "enrich_dial_task_lambda_arn" {
   description = "Enrich Dial Task Lambda ARN"
   value       = aws_lambda_function.enrich_dial_task.arn

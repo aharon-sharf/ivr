@@ -154,10 +154,11 @@ module "orchestration" {
   environment  = var.environment
 
   # Lambda function ARNs
-  validate_campaign_lambda_arn = module.compute.validate_campaign_lambda_arn
-  dispatcher_lambda_arn        = module.compute.dispatcher_lambda_arn
-  status_checker_lambda_arn    = module.compute.status_checker_lambda_arn
-  report_generator_lambda_arn  = module.compute.report_generator_lambda_arn
+  validate_campaign_lambda_arn     = module.compute.validate_campaign_lambda_arn
+  dispatcher_lambda_arn            = module.compute.dispatcher_lambda_arn
+  status_checker_lambda_arn        = module.compute.status_checker_lambda_arn
+  report_generator_lambda_arn      = module.compute.report_generator_lambda_arn
+  campaign_orchestrator_lambda_arn = module.compute.campaign_orchestrator_lambda_arn
 
   # SQS Queue
   dial_tasks_queue_arn = module.messaging.dial_tasks_queue_arn

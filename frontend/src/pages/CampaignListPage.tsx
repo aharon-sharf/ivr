@@ -31,6 +31,7 @@ import {
   Visibility as ViewIcon,
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
+  Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setCampaigns, setLoading, setError, removeCampaign, updateCampaign } from '../store/slices/campaignSlice';
@@ -112,6 +113,24 @@ export const CampaignListPage = () => {
       dispatch(updateCampaign(updated));
     } catch (err) {
       dispatch(setError(err instanceof Error ? err.message : 'Failed to resume campaign'));
+    }
+  };
+
+  const handleStart = async (id: string) => {
+    try {
+      const updated = await campaignApi.startCampaign(id);
+      dispatch(updateCampaign(updated));
+    } catch (err) {
+      dispatch(setError(err instanceof Error ? err.message : 'Failed to start campaign'));
+    }
+  };
+
+  const handleSchedule = async (id: string) => {
+    try {
+      const updated = await campaignApi.scheduleCampaign(id);
+      dispatch(updateCampaign(updated));
+    } catch (err) {
+      dispatch(setError(err instanceof Error ? err.message : 'Failed to schedule campaign'));
     }
   };
 
@@ -338,6 +357,26 @@ export const CampaignListPage = () => {
                           >
                             <EditIcon />
                           </IconButton>
+                          {campaign.status === 'draft' && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleStart(campaign.id)}
+                                title="Start campaign now"
+                                color="primary"
+                              >
+                                <PlayIcon />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleSchedule(campaign.id)}
+                                title="Schedule campaign"
+                                color="secondary"
+                              >
+                                <ScheduleIcon />
+                              </IconButton>
+                            </>
+                          )}
                           {campaign.status === 'active' && (
                             <IconButton
                               size="small"
