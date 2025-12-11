@@ -275,5 +275,39 @@ resource "aws_vpc_endpoint" "sagemaker_runtime" {
   )
 }
 
+# Step Functions Interface Endpoint
+resource "aws_vpc_endpoint" "stepfunctions" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.states"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-stepfunctions-endpoint-${var.environment}"
+    }
+  )
+}
+
+# EventBridge Interface Endpoint
+resource "aws_vpc_endpoint" "events" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.events"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-events-endpoint-${var.environment}"
+    }
+  )
+}
+
 # Data source for current AWS region
 data "aws_region" "current" {}
