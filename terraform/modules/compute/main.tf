@@ -116,6 +116,13 @@ resource "aws_iam_role_policy" "lambda_execution" {
           "events:DisableRule"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "rds-db:connect"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -229,6 +236,11 @@ resource "aws_lambda_function" "campaign_orchestrator" {
       VOICE_CAMPAIGN_STATE_MACHINE_ARN = var.step_functions_state_machine_arn
       SMS_DISPATCHER_FUNCTION_NAME     = aws_lambda_function.sms_dispatcher.function_name
     }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags

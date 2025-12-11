@@ -130,20 +130,33 @@ async function getPool(): Promise<Pool> {
   if (!pool) {
     const password = await getDbPassword();
     
+    console.log(`Connecting to database: ${RDS_PROXY_ENDPOINT}:${DB_PORT}/${DB_NAME} as ${DB_USER}`);
+    
     pool = new Pool({
       host: RDS_PROXY_ENDPOINT,
       port: DB_PORT,
       database: DB_NAME,
       user: DB_USER,
       password,
-      max: 20,
+      max: 5, // Reduced for Lambda
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 20000, // Increased timeout
       ssl: {
         rejectUnauthorized: false
       }
     });
-    console.log('PostgreSQL pool initialized');
+    
+    // Test the connection
+    try {
+      const client = await pool.connect();
+      console.log('Database connection test successful');
+      client.release();
+    } catch (error) {
+      console.error('Database connection test failed:', error);
+      throw error;
+    }
+    
+    console.log('PostgreSQL pool initialized successfully');
   }
   return pool;
 }
@@ -411,6 +424,15 @@ export async function handler(
   context.callbackWaitsForEmptyEventLoop = false;
   console.log('Campaign Orchestrator Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
+  console.log('Environment variables:', {
+    DB_SECRET_ARN: DB_SECRET_ARN ? 'SET' : 'NOT SET',
+    RDS_PROXY_ENDPOINT: RDS_PROXY_ENDPOINT,
+    DB_PORT: DB_PORT,
+    DB_NAME: DB_NAME,
+    DB_USER: DB_USER,
+    VOICE_CAMPAIGN_STATE_MACHINE_ARN: VOICE_CAMPAIGN_STATE_MACHINE_ARN ? 'SET' : 'NOT SET',
+    SMS_DISPATCHER_FUNCTION_NAME: SMS_DISPATCHER_FUNCTION_NAME ? 'SET' : 'NOT SET'
+  });
   
   const result: CampaignExecutionResult = {
     campaignId: event.campaignId,
