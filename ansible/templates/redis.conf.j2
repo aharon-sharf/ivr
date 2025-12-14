@@ -36,7 +36,9 @@ repl-disable-tcp-nodelay no
 replica-priority 100
 
 # Security
+{% if redis_password and redis_password != '' %}
 requirepass {{ redis_password }}
+{% endif %}
 
 # Limits
 maxclients 10000

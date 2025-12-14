@@ -6,6 +6,12 @@
     - group_vars/asterisk.yml
 
   tasks:
+    - name: Install required Python packages for AWS integration
+      pip:
+        name:
+          - boto3
+          - botocore
+        state: present
     - name: Update system packages
       dnf:
         name: '*'
@@ -217,6 +223,14 @@
         msg: "{{ asterisk_version_output.stdout }}"
 
     # Redis Installation and Configuration
+    - name: Debug Redis password source
+      debug:
+        msg: |
+          Redis password source: AWS Secrets Manager
+          Secret name: {{ project_name }}-redis-password-{{ environment }}
+          Region: {{ aws_region }}
+          Password length: {{ redis_password | length }}
+
     - name: Install Redis
       dnf:
         name: redis6
@@ -276,7 +290,7 @@
       systemd:
         name: redis6
         enabled: yes
-        state: started
+        state: restarted
         daemon_reload: yes
 
     - name: Wait for Redis to start
@@ -285,11 +299,19 @@
         delay: 2
         timeout: 30
 
-    - name: Test Redis connection
+    - name: Test Redis connection (with password)
       command: redis6-cli -a "{{ redis_password }}" ping
       register: redis_ping
       changed_when: false
       failed_when: redis_ping.stdout != "PONG"
+      when: redis_password and redis_password != ''
+
+    - name: Test Redis connection (no password)
+      command: redis6-cli ping
+      register: redis_ping_no_auth
+      changed_when: false
+      failed_when: redis_ping_no_auth.stdout != "PONG"
+      when: not redis_password or redis_password == ''
 
     - name: Display Redis status
       debug:

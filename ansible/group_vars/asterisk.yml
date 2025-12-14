@@ -1,5 +1,10 @@
 # Asterisk Configuration Variables
 
+# Project and Environment
+project_name: "mass-voice-campaign"
+# environment is passed as extra var from GitHub Actions: -e "environment=$ENV"
+aws_region: "il-central-1"
+
 # Asterisk version
 asterisk_version: "23.1.0"
 
@@ -31,14 +36,13 @@ nodejs_worker_port: 3000
 nodejs_worker_dir: "/opt/asterisk-worker"
 
 # AWS Configuration
-aws_region: "il-central-1"
 s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') }}"
 
 # Logging
 asterisk_log_level: "verbose,debug,notice,warning,error"
 
 # Redis Configuration (self-hosted on Asterisk server)
-redis_password: "{{ lookup('env', 'REDIS_PASSWORD') }}"
+redis_password: "{{ lookup('aws_secret', project_name + '-redis-password-' + environment, region=aws_region, errors='ignore') | from_json | json_query('password') | default('redis_secure_password_2023', true) }}"
 redis_port: 6379
 redis_bind_address: "0.0.0.0"  # Bind to all interfaces (secured by security group)
 redis_maxmemory: "512mb"
