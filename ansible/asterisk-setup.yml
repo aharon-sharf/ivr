@@ -29,10 +29,12 @@
         state: present
       when: boto3_system_install.failed
 
-    - name: Install AWS CLI
+    - name: Install AWS CLI (optional for debugging)
       dnf:
-        name: awscli2
+        name: awscli
         state: present
+      ignore_errors: yes
+      register: awscli_install
     - name: Update system packages
       dnf:
         name: '*'
@@ -249,11 +251,13 @@
       register: aws_identity
       changed_when: false
       ignore_errors: yes
+      when: awscli_install.failed is not defined or not awscli_install.failed
 
     - name: Debug AWS and Redis configuration
       debug:
         msg: |
-          AWS Identity: {{ aws_identity.stdout | default('Not available') }}
+          AWS CLI: {{ 'Available' if (awscli_install.failed is not defined or not awscli_install.failed) else 'Not available' }}
+          AWS Identity: {{ aws_identity.stdout | default('Not checked') }}
           Redis password source: AWS Secrets Manager
           Secret name: {{ project_name }}-redis-password-{{ environment }}
           Region: {{ aws_region }}
