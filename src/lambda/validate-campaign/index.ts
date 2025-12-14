@@ -6,18 +6,20 @@
 
 import { Campaign, validateCampaign } from '../../models/Campaign';
 import { Pool } from 'pg';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
-// Database connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+// AWS Secrets Manager client
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
+
+// Configuration
+const DB_SECRET_ARN = process.env.DB_SECRET_ARN || '';
+const RDS_PROXY_ENDPOINT = process.env.RDS_PROXY_ENDPOINT || 'localhost';
+const DB_PORT = parseInt(process.env.DB_PORT || '5432');
+const DB_NAME = process.env.DB_NAME || 'campaign_system';
+const DB_USER = process.env.DB_USER || 'iadmin';
+
+// Database connection pool (will be initialized lazily)
+let pool: Pool | null = null;
 
 interface ValidateCampaignInput {
   campaignId: string;
@@ -33,10 +35,69 @@ interface ValidateCampaignOutput {
 }
 
 /**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  try {
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: DB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+    
+    if (!response.SecretString) {
+      throw new Error('Secret string is empty');
+    }
+
+    const secret = JSON.parse(response.SecretString);
+    return secret.password;
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw error;
+  }
+}
+
+/**
+ * Initialize database connection pool
+ */
+async function initializePool(): Promise<Pool> {
+  if (pool) {
+    return pool;
+  }
+
+  try {
+    const password = await getDbPassword();
+    
+    console.log(`Connecting to database: ${RDS_PROXY_ENDPOINT}:${DB_PORT}/${DB_NAME} as ${DB_USER}`);
+    
+    pool = new Pool({
+      host: RDS_PROXY_ENDPOINT,
+      port: DB_PORT,
+      database: DB_NAME,
+      user: DB_USER,
+      password: password,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
+
+    return pool;
+  } catch (error) {
+    console.error('Error initializing database pool:', error);
+    throw error;
+  }
+}
+
+/**
  * Main Lambda handler
  */
 export async function handler(event: ValidateCampaignInput): Promise<ValidateCampaignOutput> {
   console.log('Validating campaign:', JSON.stringify(event, null, 2));
+  console.log('Environment variables:', {
+    DB_SECRET_ARN: DB_SECRET_ARN ? 'SET' : 'NOT SET',
+    RDS_PROXY_ENDPOINT: RDS_PROXY_ENDPOINT,
+    DB_PORT: DB_PORT,
+    DB_NAME: DB_NAME,
+    DB_USER: DB_USER,
+  });
 
   const { campaignId } = event;
 
@@ -94,7 +155,8 @@ export async function handler(event: ValidateCampaignInput): Promise<ValidateCam
  * Fetch campaign from database
  */
 async function getCampaign(campaignId: string): Promise<Campaign | null> {
-  const client = await pool.connect();
+  const dbPool = await initializePool();
+  const client = await dbPool.connect();
   try {
     const result = await client.query(
       `SELECT 
@@ -256,7 +318,8 @@ function validateIVRFlow(ivrFlow: any): string[] {
  * Check if campaign has any contacts
  */
 async function checkCampaignHasContacts(campaignId: string): Promise<boolean> {
-  const client = await pool.connect();
+  const dbPool = await initializePool();
+  const client = await dbPool.connect();
   try {
     const result = await client.query(
       'SELECT COUNT(*) as count FROM contacts WHERE campaign_id = $1',
@@ -271,5 +334,7 @@ async function checkCampaignHasContacts(campaignId: string): Promise<boolean> {
 // Cleanup on Lambda shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing database pool');
-  await pool.end();
+  if (pool) {
+    await pool.end();
+  }
 });

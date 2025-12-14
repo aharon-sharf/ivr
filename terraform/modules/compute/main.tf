@@ -141,8 +141,18 @@ resource "aws_lambda_function" "validate_campaign" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT        = var.environment
+      DB_SECRET_ARN      = var.rds_master_secret_arn
+      RDS_PROXY_ENDPOINT = var.rds_proxy_endpoint
+      DB_PORT            = "5432"
+      DB_NAME            = var.rds_database_name
+      DB_USER            = var.rds_username
     }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags
@@ -593,17 +603,18 @@ resource "aws_instance" "asterisk" {
               dnf update -y
               
               # Install basic tools
-              dnf install -y wget curl git vim htop
+              dnf install -y wget git vim htop
+              dnf install -y curl --allowerasing
               
               # Install CloudWatch agent
               wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
               dnf install -y ./amazon-cloudwatch-agent.rpm
               
               # Install Node.js latest
-              dnf install -y nodejs
+              dnf install -y nodejs24
               
               # Install Redis (will be configured by Ansible)
-              dnf install -y redis
+              dnf install -y redis6
               
               # Create application directory
               mkdir -p /opt/asterisk-worker
