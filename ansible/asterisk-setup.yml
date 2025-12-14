@@ -222,20 +222,29 @@
         name: redis6
         state: present
 
+    - name: Verify redis6 user exists
+      user:
+        name: redis6
+        state: present
+        system: yes
+        shell: /sbin/nologin
+        home: /var/lib/redis6
+        create_home: no
+
     - name: Create Redis configuration directory
       file:
         path: /etc/redis6
         state: directory
-        owner: redis
-        group: redis
+        owner: redis6
+        group: redis6
         mode: '0755'
 
     - name: Configure Redis
       template:
         src: templates/redis.conf.j2
         dest: /etc/redis6/redis6.conf
-        owner: redis
-        group: redis
+        owner: redis6
+        group: redis6
         mode: '0640'
       notify: restart redis
 
@@ -243,24 +252,24 @@
       file:
         path: /var/lib/redis6
         state: directory
-        owner: redis
-        group: redis
+        owner: redis6
+        group: redis6
         mode: '0750'
 
     - name: Create Redis log directory
       file:
         path: /var/log/redis6
         state: directory
-        owner: redis
-        group: redis
+        owner: redis6
+        group: redis6
         mode: '0755'
 
     - name: Create Redis PID directory
       file:
         path: /var/run/redis6
         state: directory
-        owner: redis
-        group: redis
+        owner: redis6
+        group: redis6
         mode: '0755'
 
     - name: Enable and start Redis service
@@ -277,7 +286,7 @@
         timeout: 30
 
     - name: Test Redis connection
-      command: redis-cli -a "{{ redis_password }}" ping
+      command: redis6-cli -a "{{ redis_password }}" ping
       register: redis_ping
       changed_when: false
       failed_when: redis_ping.stdout != "PONG"
