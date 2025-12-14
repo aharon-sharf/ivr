@@ -1,7 +1,7 @@
 # Asterisk Configuration Variables
 
 # Asterisk version
-asterisk_version: "20.10.0"
+asterisk_version: "23.1.0"
 
 # SIP Trunk Configuration (Israeli Provider)
 sip_trunk_provider: "019"  # or "Partner"
