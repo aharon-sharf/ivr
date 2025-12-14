@@ -33,15 +33,70 @@
       systemd:
         name: asterisk-worker
       register: worker_status
+      ignore_errors: yes
 
-    - name: Display final status
+    - name: Check Redis service status
+      systemd:
+        name: redis6
+      register: redis_status
+
+    - name: Verify Asterisk is responsive
+      command: asterisk -rx "core show version"
+      register: asterisk_version_check
+      changed_when: false
+
+    - name: Check PJSIP endpoints
+      command: asterisk -rx "pjsip show endpoints"
+      register: pjsip_endpoints_check
+      changed_when: false
+
+    - name: Check if SIP port is listening
+      wait_for:
+        port: 5060
+        timeout: 5
+      register: sip_port_check
+      ignore_errors: yes
+
+    - name: Check if AMI port is listening
+      wait_for:
+        port: 5038
+        timeout: 5
+      register: ami_port_check
+      ignore_errors: yes
+
+    - name: Check if ARI port is listening
+      wait_for:
+        port: 8088
+        timeout: 5
+      register: ari_port_check
+      ignore_errors: yes
+
+    - name: Display comprehensive status
       debug:
         msg: |
-          Setup Complete!
-          Asterisk: {{ asterisk_status.status.ActiveState }}
-          Node.js Worker: {{ worker_status.status.ActiveState }}
+          ========================================
+          ASTERISK DEPLOYMENT STATUS
+          ========================================
           
+          Services:
+          - Asterisk: {{ asterisk_status.status.ActiveState }}
+          - Redis: {{ redis_status.status.ActiveState }}
+          - Node.js Worker: {{ worker_status.status.ActiveState | default('Not deployed yet') }}
+          
+          Asterisk Version:
+          {{ asterisk_version_check.stdout }}
+          
+          Network Ports:
+          - SIP (5060): {{ 'LISTENING' if sip_port_check.failed is not defined else 'NOT LISTENING' }}
+          - AMI (5038): {{ 'LISTENING' if ami_port_check.failed is not defined else 'NOT LISTENING' }}
+          - ARI (8088): {{ 'LISTENING' if ari_port_check.failed is not defined else 'NOT LISTENING' }}
+          
+          PJSIP Endpoints:
+          {{ pjsip_endpoints_check.stdout }}
+          
+          ========================================
           Next steps:
           1. Configure your SIP trunk credentials in group_vars/asterisk.yml
           2. Upload audio files to S3 bucket
           3. Test with: ansible-playbook -i inventory/hosts.ini test-call.yml
+          ========================================
