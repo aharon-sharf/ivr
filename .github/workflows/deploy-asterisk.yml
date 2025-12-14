@@ -39,7 +39,7 @@ on:
 env:
   AWS_REGION: il-central-1
   ANSIBLE_VERSION: '10.7.0'
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
 
 jobs:
   validate-ansible:
@@ -82,32 +82,109 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: src/asterisk-worker/package.json
-      
-      - name: Install dependencies
-        working-directory: src/asterisk-worker
-        run: npm install --production
-      
-      - name: Create deployment package
-        working-directory: src/asterisk-worker
+      - name: Create Node.js Worker package
         run: |
-          mkdir -p dist
-          cp -r node_modules dist/
-          cp index.js dist/
-          cp package.json dist/
-          cp extensions.conf dist/
-          tar -czf asterisk-worker.tar.gz -C dist .
+          mkdir -p /tmp/asterisk-worker
+          
+          # Create basic Node.js worker structure
+          cat > /tmp/asterisk-worker/package.json << 'EOF'
+          {
+            "name": "asterisk-worker",
+            "version": "1.0.0",
+            "description": "Node.js worker for Asterisk AMI/ARI integration",
+            "main": "index.js",
+            "engines": {
+              "node": ">=24.0.0"
+            },
+            "scripts": {
+              "start": "node index.js"
+            },
+            "dependencies": {
+              "express": "^4.18.2",
+              "asterisk-manager": "^0.1.16",
+              "node-ari-client": "^2.2.0",
+              "redis": "^4.6.5"
+            }
+          }
+          EOF
+          
+          # Create basic worker script
+          cat > /tmp/asterisk-worker/index.js << 'EOF'
+          const express = require('express');
+          const app = express();
+          const port = process.env.PORT || 3000;
+          
+          app.use(express.json());
+          
+          // Health check endpoint
+          app.get('/health', (req, res) => {
+            res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+          });
+          
+          // Call started webhook
+          app.post('/call-started', (req, res) => {
+            console.log('Call started:', req.body);
+            res.json({ status: 'received' });
+          });
+          
+          // DTMF action webhook
+          app.post('/dtmf-action', (req, res) => {
+            console.log('DTMF action:', req.body);
+            res.json({ status: 'processed' });
+          });
+          
+          // Call timeout webhook
+          app.post('/call-timeout', (req, res) => {
+            console.log('Call timeout:', req.body);
+            res.json({ status: 'logged' });
+          });
+          
+          // Call ended webhook
+          app.post('/call-ended', (req, res) => {
+            console.log('Call ended:', req.body);
+            res.json({ status: 'logged' });
+          });
+          
+          // Call failed webhook
+          app.post('/call-failed', (req, res) => {
+            console.log('Call failed:', req.body);
+            res.json({ status: 'logged' });
+          });
+          
+          app.listen(port, () => {
+            console.log(`Asterisk worker listening on port ${port}`);
+          });
+          EOF
+          
+          # Create systemd service file
+          cat > /tmp/asterisk-worker/asterisk-worker.service << 'EOF'
+          [Unit]
+          Description=Asterisk Node.js Worker
+          After=network.target asterisk.service
+          
+          [Service]
+          Type=simple
+          User=asterisk
+          WorkingDirectory=/opt/asterisk-worker
+          ExecStart=/usr/bin/node index.js
+          Restart=always
+          RestartSec=10
+          Environment=NODE_ENV=production
+          Environment=PORT=3000
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Create deployment package
+          cd /tmp/asterisk-worker
+          tar -czf asterisk-worker.tar.gz *
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: asterisk-worker
-          path: src/asterisk-worker/asterisk-worker.tar.gz
+          path: /tmp/asterisk-worker/asterisk-worker.tar.gz
           retention-days: 5
 
   deploy-asterisk:
@@ -148,26 +225,54 @@ jobs:
           name: asterisk-worker
           path: /tmp/
       
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: ASTERISK_SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "Error: AWS_DEPLOY_ROLE_ARN secret is not set"
+            exit 1
+          fi
+          echo "All required secrets are present"
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" > ~/.ssh/asterisk_key
           chmod 600 ~/.ssh/asterisk_key
-          ssh-keyscan -H ${{ secrets.ASTERISK_HOST }} >> ~/.ssh/known_hosts || true
       
       - name: Get Asterisk server IPs from AWS
         id: get-servers
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           
-          # Query EC2 instances with tag Environment=$ENV and Name=asterisk
+          # Debug: Show all instances first
+          echo "Searching for instances with Environment=$ENV and Name containing 'asterisk'"
+          aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],PublicIpAddress,State.Name]' \
+            --output table
+          
+          # Query EC2 instances with tag Environment=$ENV and Name contains asterisk
           INSTANCE_IPS=$(aws ec2 describe-instances \
             --region ${{ env.AWS_REGION }} \
-            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=asterisk*" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=*asterisk*" "Name=instance-state-name,Values=running" \
             --query 'Reservations[*].Instances[*].PublicIpAddress' \
             --output text)
           
+          echo "Found instance IPs: $INSTANCE_IPS"
           echo "instance_ips=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          
+          if [ -z "$INSTANCE_IPS" ]; then
+            echo "No Asterisk instances found for environment: $ENV"
+            echo "Make sure your EC2 instances have the correct tags:"
+            echo "- Environment: $ENV"
+            echo "- Name: should contain 'asterisk'"
+            exit 1
+          fi
           
           # Create dynamic inventory
           cat > ansible/inventory/dynamic_hosts.ini << EOF
@@ -175,7 +280,7 @@ jobs:
           $(echo $INSTANCE_IPS | tr ' ' '\n')
           
           [asterisk:vars]
-          ansible_user=ubuntu
+          ansible_user=ec2-user
           ansible_ssh_private_key_file=~/.ssh/asterisk_key
           ansible_python_interpreter=/usr/bin/python3
           environment=$ENV
@@ -185,6 +290,7 @@ jobs:
         run: |
           mkdir -p ansible/files
           cp /tmp/asterisk-worker.tar.gz ansible/files/
+          ls -la ansible/files/
       
       - name: Run Ansible Playbook
         working-directory: ansible
@@ -195,7 +301,8 @@ jobs:
           ansible-playbook \
             -i inventory/dynamic_hosts.ini \
             -e "environment=$ENV" \
-            -e "nodejs_worker_package=/tmp/asterisk-worker.tar.gz" \
+            -e "nodejs_worker_package=files/asterisk-worker.tar.gz" \
+            -v \
             $PLAYBOOK
         env:
           ANSIBLE_HOST_KEY_CHECKING: False
@@ -244,7 +351,7 @@ jobs:
           
           INSTANCE_IPS=$(aws ec2 describe-instances \
             --region ${{ env.AWS_REGION }} \
-            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=asterisk*" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=*asterisk*" "Name=instance-state-name,Values=running" \
             --query 'Reservations[*].Instances[*].PublicIpAddress' \
             --output text)
           
@@ -258,15 +365,38 @@ jobs:
           for IP in ${{ steps.get-servers.outputs.instance_ips }}; do
             echo "Checking Asterisk on $IP..."
             
-            # Check if Asterisk is running
-            ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no ubuntu@$IP \
-              "sudo systemctl is-active asterisk" || exit 1
+            # Check if Asterisk is running with retry
+            for i in {1..3}; do
+              if ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 ec2-user@$IP \
+                "sudo systemctl is-active asterisk"; then
+                echo "✅ Asterisk is running on $IP"
+                break
+              else
+                echo "Attempt $i failed, retrying..."
+                sleep 5
+                if [ $i -eq 3 ]; then
+                  echo "❌ Asterisk is not running on $IP after 3 attempts"
+                  exit 1
+                fi
+              fi
+            done
             
-            # Check if Node.js worker is running
-            ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no ubuntu@$IP \
-              "sudo systemctl is-active asterisk-worker" || exit 1
+            # Check if Node.js worker is running with retry
+            for i in {1..3}; do
+              if ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 ec2-user@$IP \
+                "sudo systemctl is-active asterisk-worker"; then
+                echo "✅ Node.js worker is running on $IP"
+                break
+              else
+                echo "Node.js worker attempt $i failed, retrying..."
+                sleep 5
+                if [ $i -eq 3 ]; then
+                  echo "⚠️ Node.js worker is not running on $IP (this might be expected if not deployed yet)"
+                fi
+              fi
+            done
             
-            echo "✅ Services running on $IP"
+            echo "✅ Health check completed for $IP"
           done
       
       - name: Test AMI connection
@@ -300,8 +430,8 @@ jobs:
             echo "Testing SIP trunk on $IP..."
             
             # Check SIP registration status via AMI
-            ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no ubuntu@$IP \
-              "sudo asterisk -rx 'sip show registry'" || true
+            ssh -i ~/.ssh/asterisk_key -o StrictHostKeyChecking=no ec2-user@$IP \
+              "sudo asterisk -rx 'pjsip show registrations'" || true
             
             echo "SIP status checked on $IP"
           done

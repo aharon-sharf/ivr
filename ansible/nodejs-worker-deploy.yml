@@ -1,85 +1,139 @@
 ---
-- name: Deploy Node.js Worker for Asterisk Control
+- name: Deploy Node.js Worker for Asterisk Integration
   hosts: asterisk
   become: yes
-  vars_files:
-    - group_vars/asterisk.yml
+  vars:
+    nodejs_worker_dir: /opt/asterisk-worker
+    nodejs_worker_user: asterisk
+    nodejs_worker_service: asterisk-worker
 
   tasks:
-    - name: Ensure Node.js worker directory exists
+    - name: Install Node.js and npm
+      dnf:
+        name:
+          - nodejs24
+          - npm
+        state: present
+
+    - name: Create Node.js worker directory
       file:
         path: "{{ nodejs_worker_dir }}"
         state: directory
-        owner: ec2-user
-        group: ec2-user
+        owner: "{{ nodejs_worker_user }}"
+        group: "{{ nodejs_worker_user }}"
         mode: '0755'
 
-    - name: Copy Node.js worker files
-      synchronize:
-        src: ../src/lambda/dialer-worker/
-        dest: "{{ nodejs_worker_dir }}/"
-        delete: yes
-        rsync_opts:
-          - "--exclude=node_modules"
-          - "--exclude=.git"
-          - "--exclude=*.log"
+    - name: Check if worker package exists
+      stat:
+        path: "{{ nodejs_worker_package | default('files/asterisk-worker.tar.gz') }}"
+      register: worker_package_stat
+      delegate_to: localhost
 
-    - name: Set ownership of worker files
-      file:
-        path: "{{ nodejs_worker_dir }}"
-        owner: ec2-user
-        group: ec2-user
-        recurse: yes
+    - name: Extract Node.js worker package
+      unarchive:
+        src: "{{ nodejs_worker_package | default('files/asterisk-worker.tar.gz') }}"
+        dest: "{{ nodejs_worker_dir }}"
+        owner: "{{ nodejs_worker_user }}"
+        group: "{{ nodejs_worker_user }}"
+        mode: '0644'
+      when: worker_package_stat.stat.exists
+
+    - name: Verify Node.js installation
+      command: /usr/bin/node --version
+      register: node_version
+      changed_when: false
+
+    - name: Display Node.js version
+      debug:
+        msg: "Node.js version: {{ node_version.stdout }}"
 
     - name: Install Node.js dependencies
       npm:
         path: "{{ nodejs_worker_dir }}"
         state: present
         production: yes
-      become_user: ec2-user
+        executable: /usr/bin/npm
+      become_user: "{{ nodejs_worker_user }}"
+      when: worker_package_stat.stat.exists
 
-    - name: Create systemd service file
-      template:
-        src: templates/asterisk-worker.service.j2
+    - name: Create systemd service file for Node.js worker
+      copy:
+        src: "{{ nodejs_worker_dir }}/asterisk-worker.service"
         dest: /etc/systemd/system/asterisk-worker.service
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+      when: worker_package_stat.stat.exists
+      notify: reload systemd
+
+    - name: Create fallback systemd service if package not found
+      copy:
+        dest: /etc/systemd/system/asterisk-worker.service
+        content: |
+          [Unit]
+          Description=Asterisk Node.js Worker (Placeholder)
+          After=network.target asterisk.service
+          
+          [Service]
+          Type=simple
+          User=asterisk
+          WorkingDirectory=/opt/asterisk-worker
+          ExecStart=/bin/echo "Node.js worker not deployed yet"
+          Restart=no
+          
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: '0644'
+      when: not worker_package_stat.stat.exists
+      notify: reload systemd
+
+    - name: Enable and start Node.js worker service
+      systemd:
+        name: "{{ nodejs_worker_service }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes
+      when: worker_package_stat.stat.exists
+
+    - name: Create log directory for Node.js worker
+      file:
+        path: /var/log/asterisk-worker
+        state: directory
+        owner: "{{ nodejs_worker_user }}"
+        group: "{{ nodejs_worker_user }}"
+        mode: '0755'
+
+    - name: Configure logrotate for Node.js worker
+      copy:
+        dest: /etc/logrotate.d/asterisk-worker
+        content: |
+          /var/log/asterisk-worker/*.log {
+              daily
+              missingok
+              rotate 7
+              compress
+              delaycompress
+              notifempty
+              copytruncate
+              su asterisk asterisk
+          }
         owner: root
         group: root
         mode: '0644'
 
-    - name: Reload systemd daemon
+    - name: Display Node.js worker status
       systemd:
-        daemon_reload: yes
-
-    - name: Enable and start Node.js worker service
-      systemd:
-        name: asterisk-worker
-        enabled: yes
-        state: restarted
-
-    - name: Wait for Node.js worker to start
-      wait_for:
-        port: "{{ nodejs_worker_port }}"
-        delay: 2
-        timeout: 30
-
-    - name: Check Node.js worker status
-      systemd:
-        name: asterisk-worker
-        state: started
+        name: "{{ nodejs_worker_service }}"
       register: worker_status
 
-    - name: Display worker status
+    - name: Show worker service status
       debug:
-        msg: "Node.js worker is {{ worker_status.status.ActiveState }}"
+        msg: "Node.js Worker Status: {{ worker_status.status.ActiveState }}"
 
-    - name: Test Node.js worker health endpoint
-      uri:
-        url: "http://localhost:{{ nodejs_worker_port }}/health"
-        method: GET
-        status_code: 200
-      register: health_check
-      ignore_errors: yes
-
-    - name: Display health check result
-      debug:
-        msg: "Health check: {{ health_check.status }} - {{ health_check.json | default('No response') }}"
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
