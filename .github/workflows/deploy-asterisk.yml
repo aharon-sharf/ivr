@@ -187,17 +187,45 @@ jobs:
           path: /tmp/asterisk-worker/asterisk-worker.tar.gz
           retention-days: 5
 
-  deploy-asterisk:
-    name: Deploy to Asterisk Servers
+  determine-environment:
+    name: Determine Target Environment
     runs-on: ubuntu-latest
     needs: [validate-ansible, build-nodejs-worker]
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should_deploy: ${{ steps.env.outputs.should_deploy }}
+    
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-asterisk-dev:
+    name: Deploy to Asterisk Servers (Dev)
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: |
+      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
     
     permissions:
       id-token: write
       contents: read
     
     environment:
-      name: ${{ github.event.inputs.environment || 'dev' }}
+      name: dev
     
     steps:
       - name: Checkout code
@@ -246,7 +274,7 @@ jobs:
       - name: Get Asterisk server IPs from AWS
         id: get-servers
         run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          ENV="dev"
           
           # Debug: Show all instances first
           echo "Searching for instances with Environment=$ENV and Name containing 'asterisk'"
@@ -296,7 +324,285 @@ jobs:
         working-directory: ansible
         run: |
           PLAYBOOK="${{ github.event.inputs.playbook || 'site.yml' }}"
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          ENV="dev"
+          
+          ansible-playbook \
+            -i inventory/dynamic_hosts.ini \
+            -e "environment=$ENV" \
+            -e "nodejs_worker_package=files/asterisk-worker.tar.gz" \
+            -v \
+            $PLAYBOOK
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+      
+      - name: Restart Asterisk services
+        working-directory: ansible
+        run: |
+          ansible asterisk \
+            -i inventory/dynamic_hosts.ini \
+            -m systemd \
+            -a "name=asterisk state=restarted" \
+            --become
+          
+          ansible asterisk \
+            -i inventory/dynamic_hosts.ini \
+            -m systemd \
+            -a "name=asterisk-worker state=restarted" \
+            --become
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+  deploy-asterisk-staging:
+    name: Deploy to Asterisk Servers (Staging)
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Ansible
+        run: |
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          pip install boto3 botocore
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download Node.js Worker artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: asterisk-worker
+          path: /tmp/
+      
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: ASTERISK_SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "Error: AWS_DEPLOY_ROLE_ARN secret is not set"
+            exit 1
+          fi
+          echo "All required secrets are present"
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" > ~/.ssh/asterisk_key
+          chmod 600 ~/.ssh/asterisk_key
+      
+      - name: Get Asterisk server IPs from AWS
+        id: get-servers
+        run: |
+          ENV="staging"
+          
+          # Debug: Show all instances first
+          echo "Searching for instances with Environment=$ENV and Name containing 'asterisk'"
+          aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],PublicIpAddress,State.Name]' \
+            --output table
+          
+          # Query EC2 instances with tag Environment=$ENV and Name contains asterisk
+          INSTANCE_IPS=$(aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=*asterisk*" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --output text)
+          
+          echo "Found instance IPs: $INSTANCE_IPS"
+          echo "instance_ips=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          
+          if [ -z "$INSTANCE_IPS" ]; then
+            echo "No Asterisk instances found for environment: $ENV"
+            echo "Make sure your EC2 instances have the correct tags:"
+            echo "- Environment: $ENV"
+            echo "- Name: should contain 'asterisk'"
+            exit 1
+          fi
+          
+          # Create dynamic inventory
+          cat > ansible/inventory/dynamic_hosts.ini << EOF
+          [asterisk]
+          $(echo $INSTANCE_IPS | tr ' ' '\n')
+          
+          [asterisk:vars]
+          ansible_user=ec2-user
+          ansible_ssh_private_key_file=~/.ssh/asterisk_key
+          ansible_python_interpreter=/usr/bin/python3
+          environment=$ENV
+          EOF
+      
+      - name: Copy Node.js Worker to deployment location
+        run: |
+          mkdir -p ansible/files
+          cp /tmp/asterisk-worker.tar.gz ansible/files/
+          ls -la ansible/files/
+      
+      - name: Run Ansible Playbook
+        working-directory: ansible
+        run: |
+          PLAYBOOK="${{ github.event.inputs.playbook || 'site.yml' }}"
+          ENV="staging"
+          
+          ansible-playbook \
+            -i inventory/dynamic_hosts.ini \
+            -e "environment=$ENV" \
+            -e "nodejs_worker_package=files/asterisk-worker.tar.gz" \
+            -v \
+            $PLAYBOOK
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+      
+      - name: Restart Asterisk services
+        working-directory: ansible
+        run: |
+          ansible asterisk \
+            -i inventory/dynamic_hosts.ini \
+            -m systemd \
+            -a "name=asterisk state=restarted" \
+            --become
+          
+          ansible asterisk \
+            -i inventory/dynamic_hosts.ini \
+            -m systemd \
+            -a "name=asterisk-worker state=restarted" \
+            --become
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+  deploy-asterisk-production:
+    name: Deploy to Asterisk Servers (Production)
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    environment:
+      name: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Ansible
+        run: |
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          pip install boto3 botocore
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download Node.js Worker artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: asterisk-worker
+          path: /tmp/
+      
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: ASTERISK_SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "Error: AWS_DEPLOY_ROLE_ARN secret is not set"
+            exit 1
+          fi
+          echo "All required secrets are present"
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" > ~/.ssh/asterisk_key
+          chmod 600 ~/.ssh/asterisk_key
+      
+      - name: Get Asterisk server IPs from AWS
+        id: get-servers
+        run: |
+          ENV="production"
+          
+          # Debug: Show all instances first
+          echo "Searching for instances with Environment=$ENV and Name containing 'asterisk'"
+          aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0],PublicIpAddress,State.Name]' \
+            --output table
+          
+          # Query EC2 instances with tag Environment=$ENV and Name contains asterisk
+          INSTANCE_IPS=$(aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Environment,Values=$ENV" "Name=tag:Name,Values=*asterisk*" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --output text)
+          
+          echo "Found instance IPs: $INSTANCE_IPS"
+          echo "instance_ips=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          
+          if [ -z "$INSTANCE_IPS" ]; then
+            echo "No Asterisk instances found for environment: $ENV"
+            echo "Make sure your EC2 instances have the correct tags:"
+            echo "- Environment: $ENV"
+            echo "- Name: should contain 'asterisk'"
+            exit 1
+          fi
+          
+          # Create dynamic inventory
+          cat > ansible/inventory/dynamic_hosts.ini << EOF
+          [asterisk]
+          $(echo $INSTANCE_IPS | tr ' ' '\n')
+          
+          [asterisk:vars]
+          ansible_user=ec2-user
+          ansible_ssh_private_key_file=~/.ssh/asterisk_key
+          ansible_python_interpreter=/usr/bin/python3
+          environment=$ENV
+          EOF
+      
+      - name: Copy Node.js Worker to deployment location
+        run: |
+          mkdir -p ansible/files
+          cp /tmp/asterisk-worker.tar.gz ansible/files/
+          ls -la ansible/files/
+      
+      - name: Run Ansible Playbook
+        working-directory: ansible
+        run: |
+          PLAYBOOK="${{ github.event.inputs.playbook || 'site.yml' }}"
+          ENV="production"
           
           ansible-playbook \
             -i inventory/dynamic_hosts.ini \
@@ -327,8 +633,11 @@ jobs:
   health-check:
     name: Run Health Checks
     runs-on: ubuntu-latest
-    needs: deploy-asterisk
-    if: github.event.inputs.skip_health_check != 'true'
+    needs: [determine-environment, deploy-asterisk-dev, deploy-asterisk-staging, deploy-asterisk-production]
+    if: |
+      always() && 
+      (needs.deploy-asterisk-dev.result == 'success' || needs.deploy-asterisk-staging.result == 'success' || needs.deploy-asterisk-production.result == 'success') &&
+      github.event.inputs.skip_health_check != 'true'
     
     permissions:
       id-token: write
@@ -347,7 +656,7 @@ jobs:
       - name: Get Asterisk server IPs
         id: get-servers
         run: |
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          ENV="${{ needs.determine-environment.outputs.environment }}"
           
           INSTANCE_IPS=$(aws ec2 describe-instances \
             --region ${{ env.AWS_REGION }} \
@@ -439,7 +748,7 @@ jobs:
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [validate-ansible, build-nodejs-worker, deploy-asterisk, health-check]
+    needs: [validate-ansible, build-nodejs-worker, determine-environment, deploy-asterisk-dev, deploy-asterisk-staging, deploy-asterisk-production, health-check]
     if: always()
     
     steps:
@@ -447,10 +756,11 @@ jobs:
         run: |
           echo "## Asterisk Deployment Summary 📞" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Environment:** ${{ needs.determine-environment.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Playbook:** ${{ github.event.inputs.playbook || 'site.yml' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.validate-ansible.result }}" == "success" ]; then
@@ -465,10 +775,17 @@ jobs:
             echo "❌ Node.js Worker build failed" >> $GITHUB_STEP_SUMMARY
           fi
           
-          if [ "${{ needs.deploy-asterisk.result }}" == "success" ]; then
-            echo "✅ Asterisk configuration deployed" >> $GITHUB_STEP_SUMMARY
-          else
+          # Check deployment results based on environment
+          if [ "${{ needs.deploy-asterisk-dev.result }}" == "success" ]; then
+            echo "✅ Asterisk configuration deployed to dev" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-asterisk-staging.result }}" == "success" ]; then
+            echo "✅ Asterisk configuration deployed to staging" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-asterisk-production.result }}" == "success" ]; then
+            echo "✅ Asterisk configuration deployed to production" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-asterisk-dev.result }}" == "failure" ] || [ "${{ needs.deploy-asterisk-staging.result }}" == "failure" ] || [ "${{ needs.deploy-asterisk-production.result }}" == "failure" ]; then
             echo "❌ Asterisk deployment failed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ Asterisk deployment skipped" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ "${{ needs.health-check.result }}" == "success" ]; then
@@ -484,3 +801,9 @@ jobs:
           echo "- Asterisk telephony engine" >> $GITHUB_STEP_SUMMARY
           echo "- Node.js AMI/ARI worker" >> $GITHUB_STEP_SUMMARY
           echo "- IVR dialplan configuration" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Flow" >> $GITHUB_STEP_SUMMARY
+          echo "- **develop** branch → auto-deploy to **dev**" >> $GITHUB_STEP_SUMMARY
+          echo "- **main** branch → auto-deploy to **staging**" >> $GITHUB_STEP_SUMMARY
+          echo "- **production** → manual deployment only (workflow_dispatch)" >> $GITHUB_STEP_SUMMARY
