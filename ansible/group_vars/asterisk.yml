@@ -42,7 +42,7 @@ s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') }}"
 asterisk_log_level: "verbose,debug,notice,warning,error"
 
 # Redis Configuration (self-hosted on Asterisk server)
-redis_password: "{{ lookup('aws_secret', project_name + '-redis-password-' + environment, region=aws_region, errors='ignore') | from_json | json_query('password') | default(lookup('env', 'REDIS_PASSWORD'), true) | default('redis_secure_password_2023', true) }}"
+redis_password: "redis_secure_password_2023"  # Default, will be overridden by task
 redis_port: 6379
 redis_bind_address: "0.0.0.0"  # Bind to all interfaces (secured by security group)
 redis_maxmemory: "512mb"

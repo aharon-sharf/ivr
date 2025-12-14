@@ -253,13 +253,28 @@
       ignore_errors: yes
       when: awscli_install.failed is not defined or not awscli_install.failed
 
+    - name: Debug variables before Redis password lookup
+      debug:
+        msg: |
+          Project name: {{ project_name }}
+          Environment: {{ environment }} (type: {{ environment | type_debug }})
+          AWS region: {{ aws_region }}
+          Secret name will be: {{ project_name }}-redis-password-{{ environment | string }}
+
+    - name: Retrieve Redis password from AWS Secrets Manager
+      set_fact:
+        redis_password: "{{ lookup('aws_secret', secret_name, region=aws_region, errors='ignore') | from_json | json_query('password') | default(lookup('env', 'REDIS_PASSWORD'), true) | default('redis_secure_password_2023', true) }}"
+      vars:
+        secret_name: "{{ project_name }}-redis-password-{{ environment | string }}"
+      ignore_errors: yes
+
     - name: Debug AWS and Redis configuration
       debug:
         msg: |
           AWS CLI: {{ 'Available' if (awscli_install.failed is not defined or not awscli_install.failed) else 'Not available' }}
           AWS Identity: {{ aws_identity.stdout | default('Not checked') }}
           Redis password source: AWS Secrets Manager
-          Secret name: {{ project_name }}-redis-password-{{ environment }}
+          Secret name: {{ project_name }}-redis-password-{{ environment | string }}
           Region: {{ aws_region }}
           Password length: {{ redis_password | length }}
 
