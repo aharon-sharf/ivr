@@ -39,7 +39,7 @@ on:
 env:
   AWS_REGION: il-central-1
   ANSIBLE_VERSION: '10.7.0'
-  NODE_VERSION: '18'
+  NODE_VERSION: '22'
 
 jobs:
   validate-ansible:

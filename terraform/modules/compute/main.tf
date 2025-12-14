@@ -615,7 +615,9 @@ resource "aws_instance" "asterisk" {
               
               # Install Redis (will be configured by Ansible)
               dnf install -y redis6
-              
+              systemctl start redis6
+              systemctl enable redis6
+
               # Create application directory
               mkdir -p /opt/asterisk-worker
               chown ec2-user:ec2-user /opt/asterisk-worker
