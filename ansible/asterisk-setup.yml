@@ -6,11 +6,32 @@
     - group_vars/asterisk.yml
 
   tasks:
-    - name: Install required Python packages for AWS integration
+    - name: Install AWS SDK packages (system packages)
+      dnf:
+        name:
+          - python3-boto3
+          - python3-botocore
+        state: present
+      ignore_errors: yes
+      register: boto3_system_install
+
+    - name: Install Python pip (fallback)
+      dnf:
+        name: python3-pip
+        state: present
+      when: boto3_system_install.failed
+
+    - name: Install AWS SDK packages (pip fallback)
       pip:
         name:
           - boto3
           - botocore
+        state: present
+      when: boto3_system_install.failed
+
+    - name: Install AWS CLI
+      dnf:
+        name: awscli2
         state: present
     - name: Update system packages
       dnf:
@@ -223,9 +244,16 @@
         msg: "{{ asterisk_version_output.stdout }}"
 
     # Redis Installation and Configuration
-    - name: Debug Redis password source
+    - name: Check AWS credentials availability
+      command: aws sts get-caller-identity
+      register: aws_identity
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Debug AWS and Redis configuration
       debug:
         msg: |
+          AWS Identity: {{ aws_identity.stdout | default('Not available') }}
           Redis password source: AWS Secrets Manager
           Secret name: {{ project_name }}-redis-password-{{ environment }}
           Region: {{ aws_region }}
