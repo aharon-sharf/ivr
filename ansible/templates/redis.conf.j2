@@ -12,9 +12,9 @@ tcp-keepalive 300
 # General
 daemonize no
 supervised systemd
-pidfile /var/run/redis/redis.pid
+pidfile /var/run/redis6/redis6.pid
 loglevel notice
-logfile /var/log/redis/redis.log
+logfile /var/log/redis6/redis6.log
 databases 16
 
 # Snapshotting (RDB persistence)
@@ -25,7 +25,7 @@ stop-writes-on-bgsave-error yes
 rdbcompression yes
 rdbchecksum yes
 dbfilename dump.rdb
-dir /var/lib/redis
+dir /var/lib/redis6
 
 # Replication
 replica-serve-stale-data yes

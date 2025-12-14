@@ -7,13 +7,13 @@
 
   tasks:
     - name: Update system packages
-      yum:
+      dnf:
         name: '*'
         state: latest
         update_cache: yes
 
     - name: Install development tools and dependencies
-      yum:
+      dnf:
         name:
           - gcc
           - gcc-c++
@@ -111,7 +111,6 @@
         cd /usr/src/asterisk-{{ asterisk_version }}
         make install
         make samples
-        make config
       args:
         creates: /usr/sbin/asterisk
 
@@ -155,6 +154,31 @@
         regexp: '^#?AST_GROUP='
         line: 'AST_GROUP="asterisk"'
 
+    - name: Create Asterisk PID directory
+      file:
+        path: /var/run/asterisk
+        state: directory
+        owner: asterisk
+        group: asterisk
+        mode: '0755'
+
+    - name: Configure Asterisk main configuration
+      lineinfile:
+        path: /etc/asterisk/asterisk.conf
+        regexp: '^astpidfile'
+        line: 'astpidfile => /var/run/asterisk/asterisk.pid'
+        insertafter: '^\[directories\]'
+        create: yes
+
+    - name: Create Asterisk systemd service file
+      template:
+        src: templates/asterisk.service.j2
+        dest: /etc/systemd/system/asterisk.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: reload systemd
+
     - name: Enable and start Asterisk service
       systemd:
         name: asterisk
@@ -179,13 +203,13 @@
 
     # Redis Installation and Configuration
     - name: Install Redis
-      yum:
-        name: redis
+      dnf:
+        name: redis6
         state: present
 
     - name: Create Redis configuration directory
       file:
-        path: /etc/redis
+        path: /etc/redis6
         state: directory
         owner: redis
         group: redis
@@ -194,7 +218,7 @@
     - name: Configure Redis
       template:
         src: templates/redis.conf.j2
-        dest: /etc/redis/redis.conf
+        dest: /etc/redis6/redis6.conf
         owner: redis
         group: redis
         mode: '0640'
@@ -202,7 +226,7 @@
 
     - name: Create Redis data directory
       file:
-        path: /var/lib/redis
+        path: /var/lib/redis6
         state: directory
         owner: redis
         group: redis
@@ -210,7 +234,15 @@
 
     - name: Create Redis log directory
       file:
-        path: /var/log/redis
+        path: /var/log/redis6
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+
+    - name: Create Redis PID directory
+      file:
+        path: /var/run/redis6
         state: directory
         owner: redis
         group: redis
@@ -218,7 +250,7 @@
 
     - name: Enable and start Redis service
       systemd:
-        name: redis
+        name: redis6
         enabled: yes
         state: started
         daemon_reload: yes
@@ -242,5 +274,9 @@
   handlers:
     - name: restart redis
       systemd:
-        name: redis
+        name: redis6
         state: restarted
+
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes

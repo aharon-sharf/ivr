@@ -333,8 +333,8 @@ resource "aws_lambda_function" "sms_dispatcher" {
   }
 }
 
-# Get latest Amazon Linux 2 AMI
-data "aws_ami" "amazon_linux_2" {
+# Get latest Amazon Linux 2023 AMI
+data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
 
@@ -569,7 +569,7 @@ resource "aws_eip" "asterisk" {
 
 # Asterisk EC2 Instance
 resource "aws_instance" "asterisk" {
-  ami                    = data.aws_ami.amazon_linux_2.id
+  ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.asterisk_instance_type
   key_name               = var.asterisk_key_name
   subnet_id              = var.public_subnet_ids[0]
@@ -613,10 +613,7 @@ resource "aws_instance" "asterisk" {
               # Install Node.js latest
               dnf install -y nodejs24
               
-              # Install Redis (will be configured by Ansible)
-              dnf install -y redis6
-              systemctl start redis6
-              systemctl enable redis6
+              # Redis will be installed and configured by Ansible
 
               # Create application directory
               mkdir -p /opt/asterisk-worker
