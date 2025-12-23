@@ -653,6 +653,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: ASTERISK_SSH_PRIVATE_KEY secret is not set"
+            echo "Please add the SSH private key as a repository secret"
+            exit 1
+          fi
+          
+          echo "All required secrets are present"
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ASTERISK_SSH_PRIVATE_KEY }}" > ~/.ssh/asterisk_key
+          chmod 600 ~/.ssh/asterisk_key
+      
       - name: Get Asterisk server IPs
         id: get-servers
         run: |
