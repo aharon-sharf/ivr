@@ -722,7 +722,7 @@ psql -h $DB_ENDPOINT -U admin -d campaign_system \
 ssh -i your-key.pem -L 5433:your-rds-endpoint:5432 ec2-user@bastion-ip -N
 
 # 2. In another terminal, run migrations through the tunnel
-export DB_PASSWORD="<password-from-above>"
+export PGPASSWORD="<password-from-above>"
 
 psql -h localhost -p 5433 -U admin -d campaign_system \
   -f database/migrations/001_initial_schema.sql

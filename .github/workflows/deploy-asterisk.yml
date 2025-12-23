@@ -1,4 +1,4 @@
-name: Deploy Asterisk Configuration to Servers
+name: Deploy Asterisk Configuration to Server
 
 on:
   push:
