@@ -20,9 +20,19 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
-output "vpc_endpoints_security_group_id" {
-  description = "Security group ID for VPC endpoints"
-  value       = aws_security_group.vpc_endpoints.id
+output "nat_instance_id" {
+  description = "NAT instance ID"
+  value       = aws_instance.nat_instance.id
+}
+
+output "nat_instance_private_ip" {
+  description = "NAT instance private IP"
+  value       = aws_instance.nat_instance.private_ip
+}
+
+output "nat_instance_public_ip" {
+  description = "NAT instance public IP"
+  value       = aws_instance.nat_instance.public_ip
 }
 
 output "internet_gateway_id" {

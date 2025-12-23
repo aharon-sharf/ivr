@@ -159,7 +159,7 @@ aws iam create-role \
 # Attach necessary policies
 aws iam attach-role-policy \
   --role-name GitHubActionsDeployRole \
-  --policy-arn arn:aws:iam::aws:policy/PowerUserAccess
+  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 
 # For production, create a more restrictive custom policy
 # admin policy  : arn:aws:iam::aws:policy/AdministratorAccess

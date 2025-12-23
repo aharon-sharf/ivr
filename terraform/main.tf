@@ -58,6 +58,10 @@ module "networking" {
   private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
 
+  # NAT Instance configuration
+  nat_instance_type     = var.nat_instance_type
+  nat_instance_key_name = var.nat_instance_key_name
+
   tags = local.common_tags
 }
 

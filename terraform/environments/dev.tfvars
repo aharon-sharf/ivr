@@ -5,7 +5,7 @@ environment = "dev"
 
 # Networking
 vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["il-central-1a", "il-central-1b"]
+availability_zones = ["il-central-1a"]
 
 # Compute
 asterisk_instance_type = "t3.micro"

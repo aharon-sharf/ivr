@@ -196,7 +196,8 @@ resource "aws_s3_bucket_cors_configuration" "contact_uploads" {
 
 # Frontend Hosting Bucket
 resource "aws_s3_bucket" "frontend_hosting" {
-  bucket = "${var.project_name}-frontend-${var.environment}"
+  bucket        = "${var.project_name}-frontend-${var.environment}"
+  force_destroy = true
 
   tags = merge(
     var.tags,

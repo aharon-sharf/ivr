@@ -30,6 +30,18 @@ variable "availability_zones" {
   type        = list(string)
 }
 
+variable "nat_instance_type" {
+  description = "Instance type for NAT instance"
+  type        = string
+  default     = "t3.nano"
+}
+
+variable "nat_instance_key_name" {
+  description = "SSH key pair name for NAT instance"
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)

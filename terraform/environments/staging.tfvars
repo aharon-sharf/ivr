@@ -5,7 +5,7 @@ environment = "staging"
 
 # Networking
 vpc_cidr           = "10.0.0.0/16"
-availability_zones = ["il-central-1a", "il-central-1b"]
+availability_zones = ["il-central-1a"]
 
 # Compute
 asterisk_instance_type = "c5.xlarge"
@@ -20,7 +20,7 @@ rds_multi_az          = false
 
 # Cache
 redis_node_type       = "cache.r5.large"
-redis_num_cache_nodes = 2
+redis_num_cache_nodes = 1
 
 # Lambda
 # lambda_reserved_concurrency = {

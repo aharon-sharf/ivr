@@ -1,4 +1,4 @@
-# Networking Module - VPC, Subnets, VPC Endpoints
+# Networking Module - VPC, Subnets, NAT Instance
 
 # VPC
 resource "aws_vpc" "main" {
@@ -86,9 +86,104 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# Security Group for NAT Instance
+resource "aws_security_group" "nat_instance" {
+  name        = "${var.project_name}-nat-instance-sg-${var.environment}"
+  description = "Security group for NAT instance"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow HTTP traffic from private subnets
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
+  }
+
+  # Allow HTTPS traffic from private subnets
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.private_subnet_cidrs
+  }
+
+  # Allow SSH for management (optional)
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow all outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-nat-instance-sg-${var.environment}"
+    }
+  )
+}
+
+# Get latest Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# NAT Instance
+resource "aws_instance" "nat_instance" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = var.nat_instance_type
+  key_name               = var.nat_instance_key_name
+  vpc_security_group_ids = [aws_security_group.nat_instance.id]
+  subnet_id              = aws_subnet.public[0].id
+  source_dest_check      = false
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+              sysctl -p
+              /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+              /sbin/iptables -F FORWARD
+              service iptables save
+              chkconfig iptables on
+              EOF
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-nat-instance-${var.environment}"
+    }
+  )
+}
+
 # Route Table for Private Subnets
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.nat_instance.primary_network_interface_id
+  }
 
   tags = merge(
     var.tags,
@@ -106,7 +201,7 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# S3 Gateway Endpoint (FREE)
+# S3 Gateway Endpoint (FREE - keep this one)
 resource "aws_vpc_endpoint" "s3" {
   vpc_id       = aws_vpc.main.id
   service_name = "com.amazonaws.${data.aws_region.current.name}.s3"
@@ -120,191 +215,6 @@ resource "aws_vpc_endpoint" "s3" {
     var.tags,
     {
       Name = "${var.project_name}-s3-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Security Group for VPC Endpoints
-resource "aws_security_group" "vpc_endpoints" {
-  name        = "${var.project_name}-vpc-endpoints-sg-${var.environment}"
-  description = "Security group for VPC endpoints"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-vpc-endpoints-sg-${var.environment}"
-    }
-  )
-}
-
-# SQS Interface Endpoint
-resource "aws_vpc_endpoint" "sqs" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.sqs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-sqs-endpoint-${var.environment}"
-    }
-  )
-}
-
-# SNS Interface Endpoint
-resource "aws_vpc_endpoint" "sns" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.sns"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-sns-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Lambda Interface Endpoint
-resource "aws_vpc_endpoint" "lambda" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.lambda"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-lambda-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Cognito Identity Provider (IDP) Interface Endpoint
-resource "aws_vpc_endpoint" "cognito_idp" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.cognito-idp"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-cognito-idp-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Polly Interface Endpoint (not available in all regions like il-central-1)
-resource "aws_vpc_endpoint" "polly" {
-  count = contains(["il-central-1"], data.aws_region.current.name) ? 0 : 1
-
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.polly"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-polly-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Secrets Manager Interface Endpoint
-resource "aws_vpc_endpoint" "secretsmanager" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-secretsmanager-endpoint-${var.environment}"
-    }
-  )
-}
-
-# SageMaker Runtime Interface Endpoint (not available in all regions like il-central-1)
-resource "aws_vpc_endpoint" "sagemaker_runtime" {
-  count = contains(["il-central-1"], data.aws_region.current.name) ? 0 : 1
-
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.sagemaker.runtime"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-sagemaker-runtime-endpoint-${var.environment}"
-    }
-  )
-}
-
-# Step Functions Interface Endpoint
-resource "aws_vpc_endpoint" "stepfunctions" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.states"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-stepfunctions-endpoint-${var.environment}"
-    }
-  )
-}
-
-# EventBridge Interface Endpoint
-resource "aws_vpc_endpoint" "events" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.events"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.project_name}-events-endpoint-${var.environment}"
     }
   )
 }

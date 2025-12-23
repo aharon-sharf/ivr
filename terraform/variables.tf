@@ -22,19 +22,19 @@ variable "vpc_cidr" {
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+  default     = ["10.0.1.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+  default     = ["10.0.10.0/24"]
 }
 
 variable "availability_zones" {
   description = "Availability zones for subnet deployment"
   type        = list(string)
-  default     = ["il-central-1a", "il-central-1b"]
+  default     = ["il-central-1a"]
 }
 
 # RDS PostgreSQL Variables
@@ -53,7 +53,7 @@ variable "rds_allocated_storage" {
 variable "rds_multi_az" {
   description = "Enable Multi-AZ deployment for RDS"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # ElastiCache Redis Variables
@@ -66,7 +66,7 @@ variable "redis_node_type" {
 variable "redis_num_cache_nodes" {
   description = "Number of cache nodes in Redis cluster"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 # Asterisk EC2 Variables
@@ -79,6 +79,19 @@ variable "asterisk_instance_type" {
 variable "asterisk_key_name" {
   description = "SSH key pair name for Asterisk EC2 instance"
   type        = string
+}
+
+# NAT Instance Variables
+variable "nat_instance_type" {
+  description = "Instance type for NAT instance"
+  type        = string
+  default     = "t3.nano"
+}
+
+variable "nat_instance_key_name" {
+  description = "SSH key pair name for NAT instance (optional)"
+  type        = string
+  default     = null
 }
 
 # ML Module Feature Flag
