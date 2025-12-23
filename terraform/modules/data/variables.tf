@@ -20,6 +20,11 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
+variable "rds_subnet_ids" {
+  description = "RDS subnet IDs for database deployment (requires minimum 2 AZs)"
+  type        = list(string)
+}
+
 variable "rds_instance_class" {
   description = "RDS instance class"
   type        = string

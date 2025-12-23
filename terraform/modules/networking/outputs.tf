@@ -20,6 +20,11 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
+output "rds_subnet_ids" {
+  description = "RDS subnet IDs"
+  value       = aws_subnet.rds[*].id
+}
+
 output "nat_instance_id" {
   description = "NAT instance ID"
   value       = aws_instance.nat_instance.id

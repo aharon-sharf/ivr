@@ -31,10 +31,24 @@ variable "private_subnet_cidrs" {
   default     = ["10.0.10.0/24"]
 }
 
+# Additional subnet for RDS requirement (minimum 2 AZs)
+variable "rds_subnet_cidrs" {
+  description = "CIDR blocks for RDS subnets (requires minimum 2 AZs)"
+  type        = list(string)
+  default     = ["10.0.10.0/24", "10.0.11.0/24"]
+}
+
 variable "availability_zones" {
   description = "Availability zones for subnet deployment"
   type        = list(string)
   default     = ["il-central-1a"]
+}
+
+# Additional AZ for RDS requirement
+variable "rds_availability_zones" {
+  description = "Availability zones for RDS subnets (requires minimum 2 AZs)"
+  type        = list(string)
+  default     = ["il-central-1a", "il-central-1b"]
 }
 
 # RDS PostgreSQL Variables

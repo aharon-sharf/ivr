@@ -58,6 +58,10 @@ module "networking" {
   private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
 
+  # RDS subnets (requires minimum 2 AZs)
+  rds_subnet_cidrs       = var.rds_subnet_cidrs
+  rds_availability_zones = var.rds_availability_zones
+
   # NAT Instance configuration
   nat_instance_type     = var.nat_instance_type
   nat_instance_key_name = var.nat_instance_key_name
@@ -74,6 +78,7 @@ module "data" {
 
   vpc_id             = module.networking.vpc_id
   private_subnet_ids = module.networking.private_subnet_ids
+  rds_subnet_ids     = module.networking.rds_subnet_ids
 
   # RDS PostgreSQL Configuration
   rds_instance_class    = var.rds_instance_class

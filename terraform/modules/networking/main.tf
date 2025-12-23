@@ -61,6 +61,23 @@ resource "aws_subnet" "private" {
   )
 }
 
+# RDS Subnets (requires minimum 2 AZs)
+resource "aws_subnet" "rds" {
+  count = length(var.rds_subnet_cidrs)
+
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.rds_subnet_cidrs[count.index]
+  availability_zone = var.rds_availability_zones[count.index]
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.project_name}-rds-subnet-${count.index + 1}-${var.environment}"
+      Type = "RDS"
+    }
+  )
+}
+
 # Route Table for Public Subnets
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
@@ -198,6 +215,14 @@ resource "aws_route_table_association" "private" {
   count = length(aws_subnet.private)
 
   subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
+# Route Table Associations for RDS Subnets
+resource "aws_route_table_association" "rds" {
+  count = length(aws_subnet.rds)
+
+  subnet_id      = aws_subnet.rds[count.index].id
   route_table_id = aws_route_table.private.id
 }
 

@@ -32,7 +32,7 @@ resource "aws_security_group" "rds" {
 # DB Subnet Group
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group-${var.environment}"
-  subnet_ids = var.private_subnet_ids
+  subnet_ids = var.rds_subnet_ids
 
   tags = merge(
     var.tags,
@@ -195,7 +195,7 @@ resource "aws_db_proxy" "main" {
   }
 
   role_arn               = aws_iam_role.rds_proxy.arn
-  vpc_subnet_ids         = var.private_subnet_ids
+  vpc_subnet_ids         = var.rds_subnet_ids
   vpc_security_group_ids = [aws_security_group.rds_proxy.id]
   require_tls            = true
 

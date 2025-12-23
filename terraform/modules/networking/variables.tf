@@ -30,6 +30,16 @@ variable "availability_zones" {
   type        = list(string)
 }
 
+variable "rds_subnet_cidrs" {
+  description = "CIDR blocks for RDS subnets (requires minimum 2 AZs)"
+  type        = list(string)
+}
+
+variable "rds_availability_zones" {
+  description = "Availability zones for RDS subnets (requires minimum 2 AZs)"
+  type        = list(string)
+}
+
 variable "nat_instance_type" {
   description = "Instance type for NAT instance"
   type        = string
