@@ -51,7 +51,7 @@
       npm:
         path: "{{ nodejs_worker_dir }}"
         state: present
-        omit: dev
+        production: yes
         executable: /usr/bin/npm
       become_user: "{{ nodejs_worker_user }}"
       when: worker_package_stat.stat.exists
