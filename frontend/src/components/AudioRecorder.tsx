@@ -110,21 +110,32 @@ export const AudioRecorder = ({
         setIsUploading(true);
         try {
           const fileName = `recording-${Date.now()}.webm`;
-          console.log('Getting presigned URL for:', fileName, blob.type);
-          const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, blob.type);
-          console.log('Got presigned URL:', uploadUrl);
-          console.log('Expected S3 URL:', s3AudioUrl);
+          console.log('=== AUDIO UPLOAD DEBUG ===');
+          console.log('1. Getting presigned URL for:', fileName, blob.type);
+          console.log('   Blob size:', blob.size, 'bytes');
           
-          console.log('Uploading blob to S3, size:', blob.size, 'type:', blob.type);
+          const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, blob.type);
+          console.log('2. Got presigned URL:', uploadUrl);
+          console.log('3. Expected S3 URL:', s3AudioUrl);
+          
+          console.log('4. Starting S3 upload...');
           await audioApi.uploadToS3(uploadUrl, blob);
-          console.log('S3 upload completed successfully');
+          console.log('5. S3 upload completed successfully!');
           
           setS3Url(s3AudioUrl);
           setIsUploading(false);
+          console.log('6. Upload process completed, calling onAudioReady');
           // Return the S3 URL (not the blob URL) to the parent
           onAudioReady(blob, s3AudioUrl);
         } catch (err) {
+          console.error('=== UPLOAD ERROR ===');
           console.error('Error uploading recording to S3:', err);
+          console.error('Error type:', typeof err);
+          console.error('Error constructor:', err?.constructor?.name);
+          if (err instanceof Error) {
+            console.error('Error message:', err.message);
+            console.error('Error stack:', err.stack);
+          }
           const errorMessage = err instanceof Error ? err.message : 'Failed to upload recording';
           setError(errorMessage);
           onError?.(errorMessage);

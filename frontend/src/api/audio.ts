@@ -34,44 +34,41 @@ export const audioApi = {
    * Upload audio file directly to S3 using presigned URL
    */
   uploadToS3: async (presignedUrl: string, file: File | Blob): Promise<void> => {
+    console.log('=== S3 UPLOAD DEBUG ===');
     console.log('Starting S3 upload...');
     console.log('Presigned URL:', presignedUrl);
     console.log('File type:', file.type);
     console.log('File size:', file.size);
     
     try {
-      const response = await axios.put(presignedUrl, file, {
+      // Try using fetch instead of axios for better error handling
+      const response = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: file,
         headers: {
           'Content-Type': file.type,
         },
-        // Don't transform the request data
-        transformRequest: [],
-        // Handle any response type
-        responseType: 'text',
-        // Accept any 2xx status code
-        validateStatus: (status) => status >= 200 && status < 300,
-        // Add timeout
-        timeout: 60000, // 60 seconds
       });
       
-      console.log('S3 upload successful!');
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      console.log('S3 response status:', response.status);
+      console.log('S3 response ok:', response.ok);
+      console.log('S3 response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('S3 response error text:', errorText);
+        throw new Error(`S3 upload failed with status ${response.status}: ${errorText}`);
+      }
+      
+      const responseText = await response.text();
+      console.log('S3 response body:', responseText);
+      console.log('✅ S3 upload successful!');
       
     } catch (error) {
-      console.error('S3 upload failed:', error);
+      console.error('❌ S3 upload failed:', error);
       
-      if (axios.isAxiosError(error)) {
-        console.error('Error details:');
-        console.error('- Status:', error.response?.status);
-        console.error('- Status text:', error.response?.statusText);
-        console.error('- Response data:', error.response?.data);
-        console.error('- Response headers:', error.response?.headers);
-        console.error('- Request config:', {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers,
-        });
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.error('Network error - check CORS or connectivity');
       }
       
       throw new Error(`S3 upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

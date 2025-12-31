@@ -40,8 +40,6 @@ export class AudioService {
       Bucket: AUDIO_BUCKET,
       Key: key,
       ContentType: fileType,
-      // Don't require checksum validation for browser uploads
-      ChecksumAlgorithm: undefined,
     });
 
     // Generate presigned URL valid for 15 minutes
@@ -60,6 +58,9 @@ export class AudioService {
       key,
       fileType,
       audioUrl,
+      uploadUrl: uploadUrl.substring(0, 100) + '...', // Log first 100 chars for security
+      bucketName: AUDIO_BUCKET,
+      region: process.env.AWS_REGION,
     });
 
     return {
