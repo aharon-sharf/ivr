@@ -1,10 +1,12 @@
 /**
  * Authentication Middleware
  * Validates Cognito JWT tokens and extracts user information
+ * Automatically syncs users to the database on first authentication
  */
 
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { UserService } from '../services/UserService';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -12,6 +14,9 @@ export interface AuthenticatedUser {
   roles: string[];
   username: string;
 }
+
+// Initialize UserService for syncing users to database
+const userService = new UserService();
 
 // Validate required environment variables
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
@@ -86,6 +91,18 @@ export async function authenticateRequest(
     // Extract roles from Cognito groups
     const cognitoGroups = payload['cognito:groups'] as string[] || [];
     const roles = cognitoGroups;
+
+    // Ensure user exists in database (auto-create on first authentication)
+    try {
+      await userService.ensureUserExists(userId, email, roles);
+    } catch (syncError) {
+      // Log but don't fail authentication if user sync fails
+      // This allows the request to proceed even if DB is temporarily unavailable
+      console.error('Warning: Failed to sync user to database:', {
+        userId,
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+      });
+    }
 
     console.log('Authentication successful', {
       userId,

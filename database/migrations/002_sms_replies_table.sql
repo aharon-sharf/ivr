@@ -2,9 +2,9 @@
 -- This table stores inbound SMS replies from recipients
 
 CREATE TABLE IF NOT EXISTS sms_replies (
-  id VARCHAR(255) PRIMARY KEY,
-  contact_id VARCHAR(255) NOT NULL,
-  campaign_id VARCHAR(255) NOT NULL,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  contact_id UUID NOT NULL,
+  campaign_id UUID NOT NULL,
   phone_number VARCHAR(50) NOT NULL,
   reply_text TEXT NOT NULL,
   received_at TIMESTAMP NOT NULL,
