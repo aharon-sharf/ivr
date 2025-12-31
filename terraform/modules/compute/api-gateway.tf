@@ -55,6 +55,8 @@ resource "aws_lambda_function" "api_handler" {
       COGNITO_CLIENT_ID                = var.cognito_client_id
       COGNITO_REGION                   = data.aws_region.current.name
       CAMPAIGN_ORCHESTRATOR_LAMBDA_ARN = aws_lambda_function.campaign_orchestrator.arn
+      AUDIO_BUCKET                     = var.audio_files_bucket
+      S3_BUCKET                        = var.audio_files_bucket
     }
   }
 
