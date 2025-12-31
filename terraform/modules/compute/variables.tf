@@ -40,6 +40,11 @@ variable "dial_tasks_queue_arn" {
   type        = string
 }
 
+variable "dial_tasks_queue_url" {
+  description = "Dial tasks SQS queue URL"
+  type        = string
+}
+
 variable "rds_endpoint" {
   description = "RDS endpoint"
   type        = string

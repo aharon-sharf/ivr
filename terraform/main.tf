@@ -134,6 +134,7 @@ module "compute" {
 
   # Lambda Configuration
   dial_tasks_queue_arn = module.messaging.dial_tasks_queue_arn
+  dial_tasks_queue_url = module.messaging.dial_tasks_queue_url
 
   # Database endpoints
   rds_endpoint       = module.data.rds_endpoint

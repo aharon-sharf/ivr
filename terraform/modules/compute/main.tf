@@ -172,8 +172,21 @@ resource "aws_lambda_function" "dispatcher" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT           = var.environment
+      DB_HOST               = var.rds_proxy_endpoint
+      DB_PORT               = "5432"
+      DB_NAME               = var.rds_database_name
+      DB_USER               = var.rds_username
+      DB_SECRET_ARN         = var.rds_master_secret_arn
+      REDIS_URL             = "redis://${aws_instance.asterisk.private_ip}:6379"
+      DIAL_TASKS_QUEUE_URL  = var.dial_tasks_queue_url
+      AWS_REGION            = data.aws_region.current.name
     }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags
@@ -313,11 +326,16 @@ resource "aws_lambda_function" "sms_dispatcher" {
   environment {
     variables = {
       ENVIRONMENT        = var.environment
-      DB_SECRET_ARN      = var.rds_master_secret_arn
-      RDS_PROXY_ENDPOINT = var.rds_proxy_endpoint
+      DB_HOST            = var.rds_proxy_endpoint
       DB_PORT            = "5432"
       DB_NAME            = var.rds_database_name
       DB_USER            = var.rds_username
+      DB_SECRET_ARN      = var.rds_master_secret_arn
+      REDIS_HOST         = aws_instance.asterisk.private_ip
+      REDIS_PORT         = "6379"
+      AWS_REGION         = data.aws_region.current.name
+      BATCH_SIZE         = "100"
+      # SMS_GATEWAY_TOPIC_ARN will be added when SMS gateway is implemented
     }
   }
 
