@@ -16,6 +16,7 @@ import {
   Pause,
   Delete,
 } from '@mui/icons-material';
+import { audioApi } from '../api/audio';
 
 interface AudioRecorderProps {
   onAudioReady: (audioBlob: Blob, audioUrl: string) => void;
@@ -31,9 +32,11 @@ export const AudioRecorder = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [s3Url, setS3Url] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
@@ -92,16 +95,33 @@ export const AudioRecorder = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
+        const localUrl = URL.createObjectURL(blob);
         setAudioBlob(blob);
-        setAudioUrl(url);
-        onAudioReady(blob, url);
+        setAudioUrl(localUrl);
 
         // Stop all tracks
         if (streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
+        }
+
+        // Upload to S3
+        setIsUploading(true);
+        try {
+          const fileName = `recording-${Date.now()}.webm`;
+          const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, blob.type);
+          await audioApi.uploadToS3(uploadUrl, blob);
+          setS3Url(s3AudioUrl);
+          setIsUploading(false);
+          // Return the S3 URL (not the blob URL) to the parent
+          onAudioReady(blob, s3AudioUrl);
+        } catch (err) {
+          console.error('Error uploading recording to S3:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to upload recording';
+          setError(errorMessage);
+          onError?.(errorMessage);
+          setIsUploading(false);
         }
       };
 
@@ -169,6 +189,7 @@ export const AudioRecorder = ({
     }
     setAudioBlob(null);
     setAudioUrl(null);
+    setS3Url(null);
     setRecordingTime(0);
     setIsPlaying(false);
     if (audioPlayerRef.current) {
@@ -296,9 +317,22 @@ export const AudioRecorder = ({
               controls
             />
 
-            <Alert severity="success" sx={{ mt: 2 }}>
-              Recording complete! You can play it back or delete and record again.
-            </Alert>
+            {isUploading ? (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Uploading recording to cloud storage...
+              </Alert>
+            ) : s3Url ? (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                Recording uploaded successfully! You can play it back or delete and record again.
+                <Typography variant="caption" display="block" sx={{ mt: 1, wordBreak: 'break-all' }}>
+                  URL: {s3Url}
+                </Typography>
+              </Alert>
+            ) : (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Recording complete but upload failed. Please try again.
+              </Alert>
+            )}
           </Box>
         )}
       </Box>

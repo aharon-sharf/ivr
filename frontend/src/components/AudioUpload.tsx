@@ -20,6 +20,7 @@ import {
   CheckCircle,
 } from '@mui/icons-material';
 import { useDropzone } from 'react-dropzone';
+import { audioApi } from '../api/audio';
 
 interface AudioUploadProps {
   onAudioReady: (file: File, audioUrl: string) => void;
@@ -36,6 +37,7 @@ export const AudioUpload = ({
 }: AudioUploadProps) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [s3Url, setS3Url] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -58,7 +60,7 @@ export const AudioUpload = ({
     return null;
   };
 
-  const handleFileDrop = (acceptedFiles: File[]) => {
+  const handleFileDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) {
       return;
     }
@@ -76,27 +78,35 @@ export const AudioUpload = ({
     setIsUploading(true);
     setUploadProgress(0);
 
-    // Simulate upload progress (in real implementation, this would be actual upload progress)
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 100);
-
-    // Create audio URL for preview
-    const url = URL.createObjectURL(file);
-
-    setTimeout(() => {
-      setUploadedFile(file);
-      setAudioUrl(url);
-      setIsUploading(false);
+    try {
+      // Step 1: Get presigned URL from backend
+      setUploadProgress(10);
+      const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(file.name, file.type);
+      
+      // Step 2: Upload file to S3
+      setUploadProgress(30);
+      await audioApi.uploadToS3(uploadUrl, file);
+      
       setUploadProgress(100);
-      onAudioReady(file, url);
-    }, 1000);
+      
+      // Create local URL for preview playback
+      const localPreviewUrl = URL.createObjectURL(file);
+      
+      setUploadedFile(file);
+      setAudioUrl(localPreviewUrl);
+      setS3Url(s3AudioUrl);
+      setIsUploading(false);
+      
+      // Return the S3 URL (not the blob URL) to the parent
+      onAudioReady(file, s3AudioUrl);
+    } catch (err) {
+      console.error('Error uploading audio file:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload audio file';
+      setError(errorMessage);
+      onError?.(errorMessage);
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -126,6 +136,7 @@ export const AudioUpload = ({
     }
     setUploadedFile(null);
     setAudioUrl(null);
+    setS3Url(null);
     setIsPlaying(false);
     setUploadProgress(0);
     if (audioPlayerRef.current) {
@@ -232,7 +243,12 @@ export const AudioUpload = ({
           />
 
           <Alert severity="success" sx={{ mt: 2 }}>
-            File uploaded successfully! You can play it back or delete and upload a different file.
+            File uploaded successfully to cloud storage! You can play it back or delete and upload a different file.
+            {s3Url && (
+              <Typography variant="caption" display="block" sx={{ mt: 1, wordBreak: 'break-all' }}>
+                URL: {s3Url}
+              </Typography>
+            )}
           </Alert>
         </Box>
       )}

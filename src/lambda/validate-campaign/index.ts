@@ -200,9 +200,9 @@ async function getCampaign(campaignId: string): Promise<Campaign | null> {
 async function performRuntimeValidations(campaign: Campaign): Promise<string[]> {
   const errors: string[] = [];
 
-  // Validate campaign status
-  if (campaign.status !== 'scheduled' && campaign.status !== 'draft') {
-    errors.push(`Campaign status must be 'scheduled' or 'draft', got '${campaign.status}'`);
+  // Validate campaign status - allow active since campaign may have just been started
+  if (!['scheduled', 'draft', 'active'].includes(campaign.status)) {
+    errors.push(`Campaign status must be 'scheduled', 'draft', or 'active', got '${campaign.status}'`);
   }
 
   // Validate time range
@@ -261,8 +261,14 @@ async function performRuntimeValidations(campaign: Campaign): Promise<string[]> 
  * Validate audio file exists in S3
  */
 async function validateAudioFile(audioUrl: string): Promise<boolean> {
-  // For now, just check if URL is valid
-  // In production, this would check S3 bucket
+  // Reject blob URLs - these are browser-local and can't be accessed server-side
+  // The frontend must upload the audio file to S3 first
+  if (audioUrl.startsWith('blob:')) {
+    console.error('Audio file URL is a blob URL - file must be uploaded to S3 first');
+    return false;
+  }
+
+  // Check if URL is valid and uses https/http protocol
   try {
     const url = new URL(audioUrl);
     return url.protocol === 'https:' || url.protocol === 'http:';

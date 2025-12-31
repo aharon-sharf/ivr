@@ -9,6 +9,7 @@ import { CampaignService } from './services/CampaignService';
 import { ContactService } from './services/ContactService';
 import { BlacklistService } from './services/BlacklistService';
 import { CampaignOrchestrationService } from './services/CampaignOrchestrationService';
+import { AudioService } from './services/AudioService';
 import { authenticateRequest, AuthenticatedUser } from './middleware/auth';
 import { validateRequest } from './middleware/validation';
 import { errorResponse, successResponse } from './utils/response';
@@ -18,6 +19,7 @@ const campaignService = new CampaignService();
 const contactService = new ContactService();
 const blacklistService = new BlacklistService();
 const orchestrationService = new CampaignOrchestrationService();
+const audioService = new AudioService();
 
 /**
  * Main Lambda handler
@@ -71,6 +73,11 @@ export async function handler(
     // Blacklist routes
     if (normalizedPath.startsWith('/blacklist')) {
       return await handleBlacklistRoutes(event, method, user);
+    }
+
+    // Audio routes
+    if (normalizedPath.startsWith('/audio')) {
+      return await handleAudioRoutes(event, method, user);
     }
 
     return errorResponse(404, 'NOT_FOUND', `Route not found: ${path}`);
@@ -899,6 +906,71 @@ async function checkBlacklist(
     return successResponse(200, { isBlacklisted });
   } catch (error) {
     console.error('Error checking blacklist:', error);
+    throw error;
+  }
+}
+
+/**
+ * Handle audio-related routes
+ */
+async function handleAudioRoutes(
+  event: APIGatewayProxyEvent,
+  method: string,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  const normalizedPath = event.path.replace(/^\/api/, '');
+  const pathParts = normalizedPath.split('/').filter(Boolean);
+
+  switch (method) {
+    case 'POST':
+      if (pathParts.length === 2 && pathParts[1] === 'upload-url') {
+        // POST /audio/upload-url - Get presigned URL for upload
+        return await getAudioUploadUrl(event, user);
+      }
+      break;
+  }
+
+  return errorResponse(404, 'NOT_FOUND', 'Route not found');
+}
+
+/**
+ * Get presigned URL for audio upload
+ * Requires CampaignManager or Administrator role
+ */
+async function getAudioUploadUrl(
+  event: APIGatewayProxyEvent,
+  user: AuthenticatedUser
+): Promise<APIGatewayProxyResult> {
+  // Check RBAC
+  if (!user.roles.includes('CampaignManager') && !user.roles.includes('Administrator')) {
+    return errorResponse(
+      403,
+      'FORBIDDEN',
+      'Only Campaign Managers and Administrators can upload audio files'
+    );
+  }
+
+  try {
+    const body = JSON.parse(event.body || '{}');
+    
+    if (!body.fileName) {
+      return errorResponse(400, 'VALIDATION_ERROR', 'File name is required');
+    }
+
+    if (!body.fileType) {
+      return errorResponse(400, 'VALIDATION_ERROR', 'File type is required');
+    }
+
+    // Validate file type
+    const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/x-m4a', 'audio/mp4'];
+    if (!allowedTypes.includes(body.fileType)) {
+      return errorResponse(400, 'VALIDATION_ERROR', `Invalid file type. Allowed types: ${allowedTypes.join(', ')}`);
+    }
+
+    const result = await audioService.getPresignedUploadUrl(body.fileName, body.fileType);
+    return successResponse(200, result);
+  } catch (error) {
+    console.error('Error getting audio upload URL:', error);
     throw error;
   }
 }
