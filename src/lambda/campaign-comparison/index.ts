@@ -29,6 +29,10 @@ function getPgPool() {
       password: process.env.DB_PASSWORD,
       max: 10,
       idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      ssl: {
+        rejectUnauthorized: false
+      }
     });
   }
   return pgPool;
