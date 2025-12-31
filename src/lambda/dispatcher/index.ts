@@ -294,8 +294,9 @@ async function queryEligibleContacts(
         -- Prioritize by optimal call time if available
         CASE 
           WHEN c.optimal_call_time IS NOT NULL 
-            AND c.optimal_call_time->>'preferredHourRange' IS NOT NULL
-          THEN ABS(EXTRACT(HOUR FROM NOW()) - (c.optimal_call_time->>'preferredHourRange')::jsonb->>'start'::int)
+            AND c.optimal_call_time ? 'preferredHourRange'
+            AND c.optimal_call_time->'preferredHourRange' ? 'start'
+          THEN ABS(EXTRACT(HOUR FROM NOW()) - (c.optimal_call_time->'preferredHourRange'->>'start')::int)
           ELSE 999
         END ASC,
         c.created_at ASC
