@@ -6,22 +6,20 @@
 
 import { Pool } from 'pg';
 import { SQSClient, SendMessageBatchCommand, SendMessageBatchRequestEntry } from '@aws-sdk/client-sqs';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { createClient } from 'redis';
 
-// Database connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// Configuration
+const DB_HOST = process.env.DB_HOST;
+const DB_PORT = parseInt(process.env.DB_PORT || '5432');
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_SECRET_ARN = process.env.DB_SECRET_ARN;
+
+// Global variables
+let pool: Pool | null = null;
+let secretsClient: SecretsManagerClient | null = null;
+let cachedDbPassword: string | null = null;
 
 // SQS client
 const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -62,6 +60,74 @@ interface Contact {
 const BATCH_SIZE = 100; // Number of contacts to dispatch per invocation
 const MAX_ATTEMPTS = 3; // Maximum call attempts per contact
 const SQS_BATCH_SIZE = 10; // SQS SendMessageBatch limit
+
+/**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPassword) {
+    return cachedDbPassword;
+  }
+
+  if (!secretsClient) {
+    secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
+  }
+
+  try {
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: DB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedDbPassword = secret.password as string;
+      console.log('Database password retrieved successfully');
+      return cachedDbPassword;
+    }
+    
+    throw new Error('No password found in secret');
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw new Error(`Failed to retrieve database password: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Initialize PostgreSQL connection pool
+ */
+async function getPool(): Promise<Pool> {
+  if (!pool) {
+    const password = await getDbPassword();
+    
+    console.log(`Connecting to database: ${DB_HOST}:${DB_PORT}/${DB_NAME} as ${DB_USER}`);
+    
+    pool = new Pool({
+      host: DB_HOST,
+      port: DB_PORT,
+      database: DB_NAME,
+      user: DB_USER,
+      password,
+      max: 5, // Reduced for Lambda
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 20000, // Increased timeout
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    // Test the connection
+    try {
+      const client = await pool.connect();
+      console.log('Database connection established successfully');
+      client.release();
+    } catch (error) {
+      console.error('Failed to establish database connection:', error);
+      throw error;
+    }
+  }
+  
+  return pool;
+}
 
 /**
  * Main Lambda handler
@@ -138,6 +204,7 @@ export async function handler(event: DispatcherInput): Promise<DispatcherOutput>
  * Fetch campaign from database
  */
 async function getCampaign(campaignId: string): Promise<any> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -164,6 +231,7 @@ async function getCampaign(campaignId: string): Promise<any> {
  * Update campaign status
  */
 async function updateCampaignStatus(campaignId: string, status: string): Promise<void> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     await client.query(
@@ -190,6 +258,7 @@ async function queryEligibleContacts(
   campaign: any,
   limit: number
 ): Promise<Contact[]> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     const now = new Date();
@@ -274,6 +343,7 @@ async function checkBlacklist(phoneNumber: string): Promise<boolean> {
  * Check if phone number is blacklisted (database fallback)
  */
 async function checkBlacklistDB(phoneNumber: string): Promise<boolean> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -290,6 +360,7 @@ async function checkBlacklistDB(phoneNumber: string): Promise<boolean> {
  * Update contact status
  */
 async function updateContactStatus(contactId: string, status: string): Promise<void> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     await client.query(
@@ -368,6 +439,7 @@ async function pushContactsToQueue(contacts: Contact[], campaign: any): Promise<
  * Update multiple contacts status
  */
 async function updateContactsStatus(contactIds: string[], status: string): Promise<void> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     await client.query(
@@ -385,6 +457,7 @@ async function updateContactsStatus(contactIds: string[], status: string): Promi
  * Count pending contacts for campaign
  */
 async function countPendingContacts(campaignId: string): Promise<number> {
+  const pool = await getPool();
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -404,7 +477,9 @@ async function countPendingContacts(campaignId: string): Promise<number> {
 // Cleanup on Lambda shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing connections');
-  await pool.end();
+  if (pool) {
+    await pool.end();
+  }
   if (redisClient.isOpen) {
     await redisClient.quit();
   }
