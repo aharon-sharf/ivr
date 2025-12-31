@@ -109,20 +109,13 @@ resource "aws_security_group" "nat_instance" {
   description = "Security group for NAT instance"
   vpc_id      = aws_vpc.main.id
 
-  # Allow HTTP traffic from private subnets
+  # Allow all traffic from private subnets (for NAT)
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = var.private_subnet_cidrs
-  }
-
-  # Allow HTTPS traffic from private subnets
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = var.private_subnet_cidrs
+    description = "All traffic from private subnets"
   }
 
   # Allow SSH for management (optional)
@@ -131,6 +124,7 @@ resource "aws_security_group" "nat_instance" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH access"
   }
 
   # Allow all outbound traffic
@@ -139,6 +133,7 @@ resource "aws_security_group" "nat_instance" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
   }
 
   tags = merge(
@@ -167,40 +162,60 @@ data "aws_ami" "amazon_linux_2023" {
 
 # NAT Instance
 resource "aws_instance" "nat_instance" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = var.nat_instance_type
-  key_name               = var.nat_instance_key_name
-  vpc_security_group_ids = [aws_security_group.nat_instance.id]
-  subnet_id              = aws_subnet.public[0].id
-  source_dest_check      = false
+  ami                         = data.aws_ami.amazon_linux_2023.id
+  instance_type               = var.nat_instance_type
+  key_name                    = var.nat_instance_key_name
+  vpc_security_group_ids      = [aws_security_group.nat_instance.id]
+  subnet_id                   = aws_subnet.public[0].id
+  source_dest_check           = false
+  associate_public_ip_address = true
 
   user_data = <<-EOF
               #!/bin/bash
               set -e
               
+              # Log all output
+              exec > >(tee /var/log/user-data.log) 2>&1
+              echo "Starting NAT instance setup at $(date)"
+              
               # Update system packages
               dnf update -y
               
-              # Enable IP forwarding
-              echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
-              sysctl -p
-              
-              # Install iptables-services for persistent rules
+              # Install iptables-services
               dnf install -y iptables-services
               
-              # Configure NAT rules
-              /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-              /sbin/iptables -F FORWARD
+              # Enable IP forwarding immediately
+              echo 1 > /proc/sys/net/ipv4/ip_forward
+              
+              # Make IP forwarding persistent
+              cat >> /etc/sysctl.d/99-nat.conf <<SYSCTL
+              net.ipv4.ip_forward = 1
+              net.ipv4.conf.all.send_redirects = 0
+              net.ipv4.conf.default.send_redirects = 0
+              SYSCTL
+              sysctl -p /etc/sysctl.d/99-nat.conf
+              
+              # Get the primary network interface name
+              INTERFACE=$(ip route | grep default | awk '{print $5}')
+              
+              # Configure iptables for NAT
+              iptables -t nat -F
+              iptables -t nat -A POSTROUTING -o $INTERFACE -j MASQUERADE
+              
+              # Allow forwarding
+              iptables -P FORWARD ACCEPT
+              iptables -F FORWARD
+              iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+              iptables -A FORWARD -j ACCEPT
               
               # Save iptables rules
-              /sbin/service iptables save
+              service iptables save
               
-              # Enable iptables service
+              # Enable and start iptables service
               systemctl enable iptables
               systemctl start iptables
               
-              # Create log entry for completion
-              echo "NAT instance setup completed at $(date)" >> /var/log/nat-setup.log
+              echo "NAT instance setup completed at $(date)"
               EOF
 
   tags = merge(
