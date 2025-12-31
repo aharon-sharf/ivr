@@ -93,6 +93,7 @@ variable "asterisk_instance_type" {
 variable "asterisk_key_name" {
   description = "SSH key pair name for Asterisk EC2 instance"
   type        = string
+  default     = "asterisk-deploy-key"
 }
 
 # NAT Instance Variables
@@ -105,7 +106,7 @@ variable "nat_instance_type" {
 variable "nat_instance_key_name" {
   description = "SSH key pair name for NAT instance (optional)"
   type        = string
-  default     = null
+  default     = "asterisk-deploy-key"
 }
 
 # ML Module Feature Flag

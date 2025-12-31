@@ -149,14 +149,14 @@ resource "aws_security_group" "nat_instance" {
   )
 }
 
-# Get latest Amazon Linux 2 AMI
-data "aws_ami" "amazon_linux" {
+# Get latest Amazon Linux 2023 AMI
+data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-2023.*-x86_64"]
   }
 
   filter {
@@ -167,7 +167,7 @@ data "aws_ami" "amazon_linux" {
 
 # NAT Instance
 resource "aws_instance" "nat_instance" {
-  ami                    = data.aws_ami.amazon_linux.id
+  ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.nat_instance_type
   key_name               = var.nat_instance_key_name
   vpc_security_group_ids = [aws_security_group.nat_instance.id]
@@ -176,13 +176,31 @@ resource "aws_instance" "nat_instance" {
 
   user_data = <<-EOF
               #!/bin/bash
-              yum update -y
+              set -e
+              
+              # Update system packages
+              dnf update -y
+              
+              # Enable IP forwarding
               echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
               sysctl -p
+              
+              # Install iptables-services for persistent rules
+              dnf install -y iptables-services
+              
+              # Configure NAT rules
               /sbin/iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
               /sbin/iptables -F FORWARD
-              service iptables save
-              chkconfig iptables on
+              
+              # Save iptables rules
+              /sbin/service iptables save
+              
+              # Enable iptables service
+              systemctl enable iptables
+              systemctl start iptables
+              
+              # Create log entry for completion
+              echo "NAT instance setup completed at $(date)" >> /var/log/nat-setup.log
               EOF
 
   tags = merge(
