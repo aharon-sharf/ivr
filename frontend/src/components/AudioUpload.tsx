@@ -81,11 +81,16 @@ export const AudioUpload = ({
     try {
       // Step 1: Get presigned URL from backend
       setUploadProgress(10);
+      console.log('Getting presigned URL for:', file.name, file.type);
       const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(file.name, file.type);
+      console.log('Got presigned URL:', uploadUrl);
+      console.log('Expected S3 URL:', s3AudioUrl);
       
       // Step 2: Upload file to S3
       setUploadProgress(30);
+      console.log('Uploading file to S3, size:', file.size, 'type:', file.type);
       await audioApi.uploadToS3(uploadUrl, file);
+      console.log('S3 upload completed successfully');
       
       setUploadProgress(100);
       

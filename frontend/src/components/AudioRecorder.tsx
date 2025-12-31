@@ -110,8 +110,15 @@ export const AudioRecorder = ({
         setIsUploading(true);
         try {
           const fileName = `recording-${Date.now()}.webm`;
+          console.log('Getting presigned URL for:', fileName, blob.type);
           const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, blob.type);
+          console.log('Got presigned URL:', uploadUrl);
+          console.log('Expected S3 URL:', s3AudioUrl);
+          
+          console.log('Uploading blob to S3, size:', blob.size, 'type:', blob.type);
           await audioApi.uploadToS3(uploadUrl, blob);
+          console.log('S3 upload completed successfully');
+          
           setS3Url(s3AudioUrl);
           setIsUploading(false);
           // Return the S3 URL (not the blob URL) to the parent
