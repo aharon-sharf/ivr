@@ -180,7 +180,6 @@ resource "aws_lambda_function" "dispatcher" {
       DB_SECRET_ARN        = var.rds_master_secret_arn
       REDIS_URL            = "redis://${aws_instance.asterisk.private_ip}:6379"
       DIAL_TASKS_QUEUE_URL = var.dial_tasks_queue_url
-      AWS_REGION           = data.aws_region.current.name
     }
   }
 
@@ -333,7 +332,6 @@ resource "aws_lambda_function" "sms_dispatcher" {
       DB_SECRET_ARN = var.rds_master_secret_arn
       REDIS_HOST    = aws_instance.asterisk.private_ip
       REDIS_PORT    = "6379"
-      AWS_REGION    = data.aws_region.current.name
       BATCH_SIZE    = "100"
       # SMS_GATEWAY_TOPIC_ARN will be added when SMS gateway is implemented
     }
