@@ -22,11 +22,21 @@ export const audioApi = {
    * Get a presigned URL for uploading audio to S3
    */
   getUploadUrl: async (fileName: string, fileType: string): Promise<AudioUploadResponse> => {
-    const response = await apiClient.post<AudioUploadResponse>('/audio/upload-url', {
+    console.log('Calling API for presigned URL:', { fileName, fileType });
+    const response = await apiClient.post('/audio/upload-url', {
       fileName,
       fileType,
     });
-    return response.data;
+    console.log('API response:', response);
+    console.log('API response data:', response.data);
+    console.log('API response status:', response.status);
+    
+    // The API returns { success: true, data: {...} }, so we need response.data.data
+    if (response.data.success && response.data.data) {
+      return response.data.data as AudioUploadResponse;
+    } else {
+      throw new Error('Invalid API response format');
+    }
   },
 
   /**
