@@ -16,7 +16,7 @@ resource "aws_sqs_queue" "dial_tasks_dlq" {
 # Main Dial Tasks Queue
 resource "aws_sqs_queue" "dial_tasks" {
   name                       = "${var.project_name}-dial-tasks-${var.environment}"
-  visibility_timeout_seconds = 30
+  visibility_timeout_seconds = 70  # Must be >= Lambda timeout (60s) + buffer
   message_retention_seconds  = 345600 # 4 days
   receive_wait_time_seconds  = 20     # Long polling
 
