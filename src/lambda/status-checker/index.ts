@@ -229,8 +229,7 @@ async function cleanupStaleContacts(campaignId: string): Promise<void> {
     const result = await client.query(
       `UPDATE contacts 
        SET status = 'failed', 
-           updated_at = NOW(),
-           notes = COALESCE(notes, '') || ' [Auto-failed: stale in_progress status]'
+           updated_at = NOW()
        WHERE campaign_id = $1 
          AND status = 'in_progress' 
          AND updated_at < NOW() - INTERVAL '30 minutes'`,
