@@ -109,53 +109,28 @@ async function getRedisClient(): Promise<any> {
         return null;
       }
       
+      const redisPassword = await getRedisPassword();
+      
+      const redisUrl = redisPassword
+        ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
+        : `redis://${redisHost}:${redisPort}`;
+      
       console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
       
-      // Try with authentication first
-      try {
-        const redisPassword = await getRedisPassword();
-        
-        if (redisPassword) {
-          const redisUrlWithAuth = `redis://:${redisPassword}@${redisHost}:${redisPort}`;
-          console.log('Attempting Redis connection with authentication');
-          
-          redisClient = createClient({
-            url: redisUrlWithAuth,
-            socket: {
-              connectTimeout: 5000,
-            }
-          });
-          
-          redisClient.on('error', (err: Error) => {
-            console.error('Redis Client Error (with auth):', err);
-          });
-          
-          await redisClient.connect();
-          console.log('Redis client connected successfully with authentication');
-        } else {
-          throw new Error('No password available, trying without auth');
+      redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 5000, // 5 second timeout
         }
-      } catch (authError: any) {
-        console.warn('Redis authentication failed, trying without password:', authError.message);
-        
-        // Try without authentication as fallback
-        const redisUrlNoAuth = `redis://${redisHost}:${redisPort}`;
-        console.log('Attempting Redis connection without authentication');
-        
-        redisClient = createClient({
-          url: redisUrlNoAuth,
-          socket: {
-            connectTimeout: 5000,
-          }
-        });
-        
-        redisClient.on('error', (err: Error) => {
-          console.error('Redis Client Error (no auth):', err);
-        });
-        
-        await redisClient.connect();
-        console.log('Redis client connected successfully without authentication');
-      }
+      });
+      
+      redisClient.on('error', (err: Error) => {
+        console.error('Redis Client Error', err);
+        // Don't throw, just log
+      });
+      
+      await redisClient.connect();
+      console.log('Redis client connected successfully');
     } catch (error) {
       console.error('Failed to connect to Redis, continuing without cache:', error);
       redisClient = null;
