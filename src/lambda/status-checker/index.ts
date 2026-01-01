@@ -149,19 +149,30 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     
     // Check if campaign should be marked as completed
     let status = campaign.status;
-    if ((isComplete || hasExceededMaxDuration) && status === 'active') {
-      const reason = hasExceededMaxDuration ? 'maximum monitoring duration exceeded' : 'all contacts processed';
-      console.log(`Marking campaign ${campaignId} as completed: ${reason}`);
-      await updateCampaignStatus(campaignId, 'completed');
-      status = 'completed';
-    }
-
-    // Check if campaign end time has passed
+    let completionReason = '';
+    
+    // Priority 1: Check if campaign end time has passed
     if (campaign.end_time && new Date(campaign.end_time) < new Date()) {
       if (status === 'active') {
+        completionReason = `end time passed (${campaign.end_time})`;
+        console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
         await updateCampaignStatus(campaignId, 'completed');
         status = 'completed';
       }
+    }
+    // Priority 2: Check if all contacts are processed
+    else if (isComplete && status === 'active') {
+      completionReason = 'all contacts processed';
+      console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
+      await updateCampaignStatus(campaignId, 'completed');
+      status = 'completed';
+    }
+    // Priority 3: Safety mechanism for long-running campaigns
+    else if (hasExceededMaxDuration && status === 'active') {
+      completionReason = `maximum monitoring duration exceeded (${hoursRunning.toFixed(2)} hours)`;
+      console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
+      await updateCampaignStatus(campaignId, 'completed');
+      status = 'completed';
     }
 
     // Determine if more contacts need to be dispatched
@@ -177,7 +188,11 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
       completionPercentage,
       isComplete,
       needsMoreContacts,
-      endTime: campaign.end_time
+      endTime: campaign.end_time,
+      currentTime: new Date().toISOString(),
+      endTimePassed: campaign.end_time ? new Date(campaign.end_time) < new Date() : false,
+      hoursRunning: hoursRunning.toFixed(2),
+      completionReason: completionReason || 'none'
     });
 
     return {
