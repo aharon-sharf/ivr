@@ -15,7 +15,7 @@
  * Validates: Requirements 9.1, 9.2, 9.4
  */
 
-import { EventBridgeEvent } from 'aws-lambda';
+import { SQSEvent, SQSRecord } from 'aws-lambda';
 import { createClient, RedisClientType } from 'redis';
 import axios from 'axios';
 
@@ -251,7 +251,7 @@ async function processDialTask(dialTask: EnrichedDialTask): Promise<DialResult> 
  * EventBridge Pipes passes an array of enriched dial tasks.
  * Each task is processed with rate limiting.
  */
-export async function handler(event: any): Promise<BatchProcessingResult> {
+export async function handler(event: SQSEvent): Promise<any> {
   console.log('Dialer Worker Lambda invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -262,10 +262,24 @@ export async function handler(event: any): Promise<BatchProcessingResult> {
     rateLimited: 0,
     errors: [],
   };
+
+  // For SQS partial batch failure reporting
+  const batchItemFailures: Array<{ itemIdentifier: string }> = [];
   
   try {
-    // EventBridge Pipes passes an array of enriched messages
-    const dialTasks: EnrichedDialTask[] = Array.isArray(event) ? event : [event];
+    // SQS passes records in event.Records
+    const dialTasks: Array<{ task: EnrichedDialTask; messageId: string }> = event.Records.map((record) => {
+      try {
+        return {
+          task: JSON.parse(record.body),
+          messageId: record.messageId
+        };
+      } catch (error) {
+        console.error('Failed to parse SQS record body:', record.body, error);
+        batchItemFailures.push({ itemIdentifier: record.messageId });
+        return null;
+      }
+    }).filter(item => item !== null);
     
     console.log(`Processing ${dialTasks.length} dial tasks`);
     
@@ -274,7 +288,7 @@ export async function handler(event: any): Promise<BatchProcessingResult> {
     console.log(`Current CPS: ${currentCPS}/${MAX_CPS}`);
     
     // Process each dial task
-    for (const dialTask of dialTasks) {
+    for (const { task: dialTask, messageId } of dialTasks) {
       result.totalProcessed++;
       
       try {
@@ -287,9 +301,8 @@ export async function handler(event: any): Promise<BatchProcessingResult> {
           result.rateLimited++;
           console.warn(`Rate limited dial task for contact ${dialTask.contactId}`);
           
-          // For rate limited tasks, we should throw an error to trigger retry
-          // EventBridge Pipes will retry with exponential backoff
-          throw new Error('Rate limit exceeded - will retry');
+          // For rate limited tasks, add to failures for retry
+          batchItemFailures.push({ itemIdentifier: messageId });
         } else {
           result.failed++;
           result.errors.push({
@@ -298,6 +311,7 @@ export async function handler(event: any): Promise<BatchProcessingResult> {
             error: dialResult.error || 'Unknown error',
           });
           console.error(`Failed to process dial task for contact ${dialTask.contactId}: ${dialResult.error}`);
+          // Don't retry failed tasks, let them complete
         }
       } catch (error: any) {
         result.failed++;
@@ -308,16 +322,17 @@ export async function handler(event: any): Promise<BatchProcessingResult> {
         });
         console.error(`Error processing dial task for contact ${dialTask.contactId}:`, error);
         
-        // If rate limit exceeded, throw to trigger retry
-        if (error.message.includes('Rate limit exceeded')) {
-          throw error;
-        }
+        // Add to failures for retry
+        batchItemFailures.push({ itemIdentifier: messageId });
       }
     }
     
     console.log(`Batch processing complete: ${result.successful} successful, ${result.failed} failed, ${result.rateLimited} rate limited`);
     
-    return result;
+    // Return partial batch failure response for SQS
+    return {
+      batchItemFailures: batchItemFailures
+    };
   } catch (error) {
     console.error('Fatal error in Dialer Worker Lambda:', error);
     throw error;

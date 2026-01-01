@@ -93,28 +93,22 @@ resource "aws_sns_topic" "alarms" {
   )
 }
 
-# Note: Lambda Event Source Mapping will be created when actual Lambda functions are implemented
-# This is a placeholder comment to document the alternative approach to EventBridge Pipes
-# 
-# When Lambda functions are created, add:
-# 1. aws_lambda_event_source_mapping resource connecting SQS to Lambda
-# 2. IAM policies for Lambda to read from SQS
-# 3. IAM policies for Lambda to invoke enrichment function
-#
-# Example configuration:
-# resource "aws_lambda_event_source_mapping" "dial_tasks_to_dialer_worker" {
-#   event_source_arn = aws_sqs_queue.dial_tasks.arn
-#   function_name    = var.dialer_worker_lambda_arn
-#   batch_size       = 10
-#   maximum_batching_window_in_seconds = 5
-#   filter_criteria {
-#     filter {
-#       pattern = jsonencode({
-#         body = {
-#           phoneNumber = [{ exists = true }]
-#         }
-#       })
-#     }
-#   }
-#   function_response_types = ["ReportBatchItemFailures"]
-# }
+# Lambda Event Source Mapping - Connect SQS to Dialer Worker
+resource "aws_lambda_event_source_mapping" "dial_tasks_to_dialer_worker" {
+  event_source_arn                   = aws_sqs_queue.dial_tasks.arn
+  function_name                      = var.dialer_worker_lambda_arn
+  batch_size                         = 10
+  maximum_batching_window_in_seconds = 5
+
+  filter_criteria {
+    filter {
+      pattern = jsonencode({
+        body = {
+          phoneNumber = [{ exists = true }]
+        }
+      })
+    }
+  }
+
+  function_response_types = ["ReportBatchItemFailures"]
+}

@@ -141,6 +141,12 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     // Determine if campaign is complete
     const isComplete = contactStats.pendingContacts === 0 && contactStats.inProgressContacts === 0;
     
+    // Special case: If there are no contacts at all, campaign should be completed
+    const hasNoContacts = contactStats.totalContacts === 0;
+    
+    // Special case: If end time has passed, campaign should be completed regardless of contact status
+    const endTimePassed = campaign.end_time && new Date(campaign.end_time) < new Date();
+    
     // Check if campaign has been running too long (safety mechanism)
     const maxMonitoringHours = 24; // Maximum 24 hours of monitoring
     const campaignStartTime = new Date(campaign.created_at);
@@ -152,22 +158,27 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     let completionReason = '';
     
     // Priority 1: Check if campaign end time has passed
-    if (campaign.end_time && new Date(campaign.end_time) < new Date()) {
-      if (status === 'active') {
-        completionReason = `end time passed (${campaign.end_time})`;
-        console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
-        await updateCampaignStatus(campaignId, 'completed');
-        status = 'completed';
-      }
+    if (endTimePassed && status === 'active') {
+      completionReason = `end time passed (${campaign.end_time})`;
+      console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
+      await updateCampaignStatus(campaignId, 'completed');
+      status = 'completed';
     }
-    // Priority 2: Check if all contacts are processed
+    // Priority 2: Check if there are no contacts at all
+    else if (hasNoContacts && status === 'active') {
+      completionReason = 'no contacts to process';
+      console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
+      await updateCampaignStatus(campaignId, 'completed');
+      status = 'completed';
+    }
+    // Priority 3: Check if all contacts are processed
     else if (isComplete && status === 'active') {
       completionReason = 'all contacts processed';
       console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
       await updateCampaignStatus(campaignId, 'completed');
       status = 'completed';
     }
-    // Priority 3: Safety mechanism for long-running campaigns
+    // Priority 4: Safety mechanism for long-running campaigns
     else if (hasExceededMaxDuration && status === 'active') {
       completionReason = `maximum monitoring duration exceeded (${hoursRunning.toFixed(2)} hours)`;
       console.log(`Marking campaign ${campaignId} as completed: ${completionReason}`);
@@ -187,10 +198,11 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
       failedContacts: contactStats.failedContacts,
       completionPercentage,
       isComplete,
+      hasNoContacts,
+      endTimePassed,
       needsMoreContacts,
       endTime: campaign.end_time,
       currentTime: new Date().toISOString(),
-      endTimePassed: campaign.end_time ? new Date(campaign.end_time) < new Date() : false,
       hoursRunning: hoursRunning.toFixed(2),
       completionReason: completionReason || 'none'
     });
