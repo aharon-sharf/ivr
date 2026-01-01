@@ -205,8 +205,18 @@ resource "aws_lambda_function" "status_checker" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT   = var.environment
+      DB_HOST       = var.rds_proxy_endpoint
+      DB_PORT       = "5432"
+      DB_NAME       = var.rds_database_name
+      DB_USER       = var.rds_username
+      DB_SECRET_ARN = var.rds_master_secret_arn
     }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags

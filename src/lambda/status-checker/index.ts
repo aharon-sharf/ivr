@@ -5,21 +5,67 @@
  */
 
 import { Pool } from 'pg';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
-// Database connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: {
-    rejectUnauthorized: false
+// AWS Secrets Manager client
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
+
+// Configuration
+const DB_SECRET_ARN = process.env.DB_SECRET_ARN || '';
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = parseInt(process.env.DB_PORT || '5432');
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+
+let pool: Pool | null = null;
+
+/**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDatabasePassword(): Promise<string> {
+  try {
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: DB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+    
+    if (!response.SecretString) {
+      throw new Error('Secret value is empty');
+    }
+
+    const secret = JSON.parse(response.SecretString);
+    return secret.password;
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw error;
   }
-});
+}
+
+/**
+ * Initialize database connection pool
+ */
+async function initializePool(): Promise<Pool> {
+  if (pool) {
+    return pool;
+  }
+
+  const password = await getDatabasePassword();
+
+  pool = new Pool({
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME,
+    user: DB_USER,
+    password: password,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+
+  return pool;
+}
 
 interface StatusCheckerInput {
   campaignId: string;
@@ -53,6 +99,13 @@ interface StatusCheckerOutput {
  */
 export async function handler(event: StatusCheckerInput): Promise<StatusCheckerOutput> {
   console.log('Checking campaign status:', JSON.stringify(event, null, 2));
+  console.log('Environment variables:', {
+    DB_SECRET_ARN: DB_SECRET_ARN ? 'SET' : 'NOT SET',
+    DB_HOST: DB_HOST,
+    DB_PORT: DB_PORT,
+    DB_NAME: DB_NAME ? 'SET' : 'NOT SET',
+    DB_USER: DB_USER ? 'SET' : 'NOT SET'
+  });
 
   const { campaignId, campaignName } = event;
 
@@ -61,6 +114,9 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
   }
 
   try {
+    // Initialize database connection pool
+    await initializePool();
+
     // Fetch campaign status from database
     const campaign = await getCampaign(campaignId);
     
@@ -126,6 +182,10 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
  * Fetch campaign from database
  */
 async function getCampaign(campaignId: string): Promise<any> {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -152,6 +212,10 @@ async function getCampaign(campaignId: string): Promise<any> {
  * Update campaign status
  */
 async function updateCampaignStatus(campaignId: string, status: string): Promise<void> {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  
   const client = await pool.connect();
   try {
     await client.query(
@@ -175,6 +239,10 @@ async function getContactStatistics(campaignId: string): Promise<{
   failedContacts: number;
   blacklistedContacts: number;
 }> {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -215,6 +283,10 @@ async function getCallMetrics(campaignId: string): Promise<{
   converted: number;
   optedOut: number;
 }> {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -258,5 +330,7 @@ async function getCallMetrics(campaignId: string): Promise<{
 // Cleanup on Lambda shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing database pool');
-  await pool.end();
+  if (pool) {
+    await pool.end();
+  }
 });
