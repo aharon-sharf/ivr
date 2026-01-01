@@ -280,9 +280,6 @@
 
     - name: Retrieve Redis password from AWS Secrets Manager
       shell: |
-        echo "Attempting to retrieve secret: {{ project_name }}-redis-password-{{ env_string }}"
-        
-        # Try to get the specific secret
         aws secretsmanager get-secret-value \
           --secret-id "{{ project_name }}-redis-password-{{ env_string }}" \
           --region "{{ aws_region }}" \
@@ -323,8 +320,9 @@
           Secret name: {{ project_name }}-redis-password-{{ env_string }}
           Region: {{ aws_region }}
           Secret retrieval: {{ 'Success' if (redis_secret_raw.rc is defined and redis_secret_raw.rc == 0 and redis_secret_raw.stdout) else 'Failed (using fallback)' }}
+          Password retrieved: {{ 'Yes' if redis_password != 'redis_secure_password_2023' else 'No' }}
           Password length: {{ redis_password | length }}
-          Using fallback: {{ 'Yes' if redis_password == 'redis_secure_password_2023' else 'No' }}
+          Password (first 8 chars): {{ redis_password[:8] }}***
 
     - name: Install Redis
       dnf:
