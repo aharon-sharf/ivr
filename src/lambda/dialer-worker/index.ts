@@ -27,6 +27,7 @@ let cachedRedisPassword: string | null = null;
 
 // PostgreSQL connection pool
 let pool: Pool | null = null;
+let cachedDbPassword: string | null = null;
 
 // AWS clients
 const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -38,6 +39,13 @@ const NODE_WORKER_URL = process.env.NODE_WORKER_URL || 'http://localhost:3000';
 const MAX_CPS = parseInt(process.env.MAX_CPS || '100'); // Maximum calls per second
 const REDIS_KEY_PREFIX = 'cps:';
 const REDIS_TTL = 1; // 1 second TTL for rate limiting counter
+
+// Database configuration
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = parseInt(process.env.DB_PORT || '5432');
+const DB_NAME = process.env.DB_NAME;
+const DB_USER = process.env.DB_USER;
+const DB_SECRET_ARN = process.env.DB_SECRET_ARN;
 
 // Types
 interface DialTaskMessage {
@@ -102,16 +110,49 @@ interface BatchProcessingResult {
 }
 
 /**
+ * Get database password from AWS Secrets Manager
+ */
+async function getDbPassword(): Promise<string> {
+  if (cachedDbPassword) {
+    return cachedDbPassword;
+  }
+
+  if (!DB_SECRET_ARN) {
+    throw new Error('DB_SECRET_ARN environment variable not set');
+  }
+
+  try {
+    console.log('Retrieving database password from Secrets Manager');
+    const command = new GetSecretValueCommand({ SecretId: DB_SECRET_ARN });
+    const response = await secretsClient.send(command);
+    
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedDbPassword = secret.password as string;
+      console.log('Database password retrieved successfully');
+      return cachedDbPassword;
+    }
+    
+    throw new Error('No password found in secret');
+  } catch (error) {
+    console.error('Error retrieving database password:', error);
+    throw new Error(`Failed to retrieve database password: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * Get PostgreSQL connection pool
  */
-function getPostgreSQLPool(): Pool {
+async function getPostgreSQLPool(): Promise<Pool> {
   if (!pool) {
+    const password = await getDbPassword();
+    
     pool = new Pool({
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
+      host: DB_HOST,
+      port: DB_PORT,
+      database: DB_NAME,
+      user: DB_USER,
+      password: password,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
@@ -119,6 +160,8 @@ function getPostgreSQLPool(): Pool {
         rejectUnauthorized: false
       }
     });
+    
+    console.log(`PostgreSQL pool initialized for ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
   }
   return pool;
 }
@@ -127,7 +170,7 @@ function getPostgreSQLPool(): Pool {
  * Fetch campaign configuration from PostgreSQL
  */
 async function getCampaignConfig(campaignId: string): Promise<Campaign | null> {
-  const pgPool = getPostgreSQLPool();
+  const pgPool = await getPostgreSQLPool();
   const client = await pgPool.connect();
   
   try {
