@@ -117,6 +117,9 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     // Initialize database connection pool
     await initializePool();
 
+    // Clean up stale in-progress contacts (safety mechanism)
+    await cleanupStaleContacts(campaignId);
+
     // Fetch campaign status from database
     const campaign = await getCampaign(campaignId);
     
@@ -138,9 +141,17 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     // Determine if campaign is complete
     const isComplete = contactStats.pendingContacts === 0 && contactStats.inProgressContacts === 0;
     
+    // Check if campaign has been running too long (safety mechanism)
+    const maxMonitoringHours = 24; // Maximum 24 hours of monitoring
+    const campaignStartTime = new Date(campaign.created_at);
+    const hoursRunning = (new Date().getTime() - campaignStartTime.getTime()) / (1000 * 60 * 60);
+    const hasExceededMaxDuration = hoursRunning > maxMonitoringHours;
+    
     // Check if campaign should be marked as completed
     let status = campaign.status;
-    if (isComplete && status === 'active') {
+    if ((isComplete || hasExceededMaxDuration) && status === 'active') {
+      const reason = hasExceededMaxDuration ? 'maximum monitoring duration exceeded' : 'all contacts processed';
+      console.log(`Marking campaign ${campaignId} as completed: ${reason}`);
       await updateCampaignStatus(campaignId, 'completed');
       status = 'completed';
     }
@@ -156,7 +167,18 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
     // Determine if more contacts need to be dispatched
     const needsMoreContacts = contactStats.pendingContacts > 0 && status === 'active';
 
-    console.log(`Campaign ${campaignId} status: ${status}, completion: ${completionPercentage}%`);
+    console.log(`Campaign ${campaignId} status check:`, {
+      campaignStatus: status,
+      totalContacts: contactStats.totalContacts,
+      completedContacts: contactStats.completedContacts,
+      pendingContacts: contactStats.pendingContacts,
+      inProgressContacts: contactStats.inProgressContacts,
+      failedContacts: contactStats.failedContacts,
+      completionPercentage,
+      isComplete,
+      needsMoreContacts,
+      endTime: campaign.end_time
+    });
 
     return {
       campaignId,
@@ -175,6 +197,36 @@ export async function handler(event: StatusCheckerInput): Promise<StatusCheckerO
   } catch (error) {
     console.error('Error checking campaign status:', error);
     throw error;
+  }
+}
+
+/**
+ * Clean up contacts that have been in 'in_progress' state for too long
+ */
+async function cleanupStaleContacts(campaignId: string): Promise<void> {
+  if (!pool) {
+    throw new Error('Database pool not initialized');
+  }
+  
+  const client = await pool.connect();
+  try {
+    // Mark contacts as failed if they've been in_progress for more than 30 minutes
+    const result = await client.query(
+      `UPDATE contacts 
+       SET status = 'failed', 
+           updated_at = NOW(),
+           notes = COALESCE(notes, '') || ' [Auto-failed: stale in_progress status]'
+       WHERE campaign_id = $1 
+         AND status = 'in_progress' 
+         AND updated_at < NOW() - INTERVAL '30 minutes'`,
+      [campaignId]
+    );
+    
+    if (result.rowCount && result.rowCount > 0) {
+      console.log(`Cleaned up ${result.rowCount} stale in_progress contacts for campaign ${campaignId}`);
+    }
+  } finally {
+    client.release();
   }
 }
 

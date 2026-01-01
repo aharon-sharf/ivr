@@ -1,6 +1,7 @@
 {
   "Comment": "Campaign Execution Workflow - Orchestrates campaign validation, contact dispatch, monitoring, and reporting",
   "StartAt": "ValidateCampaign",
+  "TimeoutSeconds": 86400,
   "States": {
     "ValidateCampaign": {
       "Type": "Task",
