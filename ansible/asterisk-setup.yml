@@ -273,18 +273,38 @@
 
     - name: Retrieve Redis password from AWS Secrets Manager
       shell: |
-        aws secretsmanager get-secret-value \
+        echo "Attempting to retrieve secret: {{ project_name }}-redis-password-{{ env_string }}"
+        
+        # First, list all secrets to see what's available
+        echo "Available secrets:"
+        aws secretsmanager list-secrets --region "{{ aws_region }}" --query 'SecretList[?contains(Name, `redis`)].Name' --output text
+        
+        # Try to get the specific secret
+        SECRET_VALUE=$(aws secretsmanager get-secret-value \
           --secret-id "{{ project_name }}-redis-password-{{ env_string }}" \
           --region "{{ aws_region }}" \
           --query SecretString \
-          --output text 2>/dev/null || echo ""
+          --output text 2>&1)
+        
+        if [ $? -eq 0 ] && [ -n "$SECRET_VALUE" ]; then
+          echo "Secret retrieved successfully"
+          echo "$SECRET_VALUE"
+        else
+          echo "Failed to retrieve secret. Error: $SECRET_VALUE"
+          echo ""
+        fi
       register: redis_secret_raw
       ignore_errors: yes
 
     - name: Parse Redis password from secret
       set_fact:
-        redis_password: "{{ (redis_secret_raw.stdout | from_json).password if redis_secret_raw.stdout and redis_secret_raw.stdout != '' else 'redis_secure_password_2023' }}"
-      when: redis_secret_raw.stdout is defined and redis_secret_raw.stdout != ""
+        redis_password: "{{ (redis_secret_lines[-1] | from_json).password }}"
+      vars:
+        redis_secret_lines: "{{ redis_secret_raw.stdout_lines | select('match', '^\\{.*\\}$') | list }}"
+      when: 
+        - redis_secret_raw.stdout is defined 
+        - redis_secret_raw.stdout != ""
+        - redis_secret_lines | length > 0
       ignore_errors: yes
 
     - name: Set fallback Redis password if secret lookup failed
