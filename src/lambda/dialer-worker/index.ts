@@ -18,11 +18,15 @@
 import { SQSEvent, SQSRecord } from 'aws-lambda';
 import { createClient, RedisClientType } from 'redis';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { Pool } from 'pg';
 import axios from 'axios';
 
 // Redis client
 let redisClient: RedisClientType | null = null;
 let cachedRedisPassword: string | null = null;
+
+// PostgreSQL connection pool
+let pool: Pool | null = null;
 
 // AWS clients
 const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -36,28 +40,35 @@ const REDIS_KEY_PREFIX = 'cps:';
 const REDIS_TTL = 1; // 1 second TTL for rate limiting counter
 
 // Types
-interface EnrichedDialTask {
+interface DialTaskMessage {
   campaignId: string;
   contactId: string;
   phoneNumber: string;
   metadata?: Record<string, any>;
   attempts?: number;
-  campaign: {
-    id: string;
-    name: string;
-    type: string;
-    status: string;
-    config: {
-      audioFileUrl?: string;
-      smsTemplate?: string;
-      ivrFlow?: any;
-      callingWindows: any[];
-      maxConcurrentCalls?: number;
-      maxAttemptsPerContact?: number;
-      retryDelayMinutes?: number;
-    };
-    timezone: string;
-  };
+}
+
+interface CampaignConfig {
+  audioFileUrl?: string;
+  smsTemplate?: string;
+  ivrFlow?: any;
+  callingWindows: any[];
+  maxConcurrentCalls?: number;
+  maxAttemptsPerContact?: number;
+  retryDelayMinutes?: number;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  config: CampaignConfig;
+  timezone: string;
+}
+
+interface EnrichedDialTask extends DialTaskMessage {
+  campaign: Campaign;
   enrichedAt: string;
 }
 
@@ -88,6 +99,116 @@ interface BatchProcessingResult {
     phoneNumber: string;
     error: string;
   }>;
+}
+
+/**
+ * Get PostgreSQL connection pool
+ */
+function getPostgreSQLPool(): Pool {
+  if (!pool) {
+    pool = new Pool({
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+  return pool;
+}
+
+/**
+ * Fetch campaign configuration from PostgreSQL
+ */
+async function getCampaignConfig(campaignId: string): Promise<Campaign | null> {
+  const pgPool = getPostgreSQLPool();
+  const client = await pgPool.connect();
+  
+  try {
+    const query = `
+      SELECT 
+        id,
+        name,
+        type,
+        status,
+        config,
+        timezone,
+        created_at,
+        updated_at
+      FROM campaigns
+      WHERE id = $1
+    `;
+    
+    const result = await client.query(query, [campaignId]);
+    
+    if (result.rows.length === 0) {
+      console.warn(`Campaign not found: ${campaignId}`);
+      return null;
+    }
+    
+    const row = result.rows[0];
+    
+    return {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      status: row.status,
+      config: row.config,
+      timezone: row.timezone,
+    };
+  } catch (error) {
+    console.error('Error fetching campaign config:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Enrich a dial task message with campaign configuration
+ */
+async function enrichDialTask(message: DialTaskMessage): Promise<EnrichedDialTask | null> {
+  try {
+    // Validate required fields
+    if (!message.campaignId || !message.contactId || !message.phoneNumber) {
+      console.error('Invalid dial task message - missing required fields:', message);
+      return null;
+    }
+    
+    // Fetch campaign configuration
+    const campaign = await getCampaignConfig(message.campaignId);
+    
+    if (!campaign) {
+      console.error(`Campaign not found for dial task: ${message.campaignId}`);
+      return null;
+    }
+    
+    // Check if campaign is active
+    if (campaign.status !== 'active') {
+      console.warn(`Campaign is not active: ${campaign.id} (status: ${campaign.status})`);
+      return null;
+    }
+    
+    // Create enriched message
+    const enrichedMessage: EnrichedDialTask = {
+      ...message,
+      campaign,
+      enrichedAt: new Date().toISOString(),
+    };
+    
+    console.log(`Enriched dial task for contact ${message.contactId} in campaign ${campaign.name}`);
+    
+    return enrichedMessage;
+  } catch (error) {
+    console.error('Error enriching dial task:', error);
+    throw error;
+  }
 }
 
 /**
@@ -215,6 +336,15 @@ async function getCurrentCPS(): Promise<number> {
  */
 async function sendDialCommand(dialTask: EnrichedDialTask): Promise<DialResult> {
   try {
+    // Validate that campaign data exists
+    if (!dialTask.campaign) {
+      throw new Error('Campaign data is missing from enriched dial task');
+    }
+    
+    if (!dialTask.campaign.config) {
+      throw new Error('Campaign config is missing from enriched dial task');
+    }
+    
     // Generate unique call ID
     const callId = `call-${dialTask.campaignId}-${dialTask.contactId}-${Date.now()}`;
     
@@ -318,18 +448,39 @@ export async function handler(event: SQSEvent): Promise<any> {
   
   try {
     // SQS passes records in event.Records
-    const dialTasks: Array<{ task: EnrichedDialTask; messageId: string }> = event.Records.map((record) => {
+    const dialTasks: Array<{ task: EnrichedDialTask; messageId: string }> = [];
+    
+    for (const record of event.Records) {
       try {
-        return {
-          task: JSON.parse(record.body),
-          messageId: record.messageId
-        };
+        const parsedMessage = JSON.parse(record.body);
+        console.log(`Parsed message for record ${record.messageId}:`, JSON.stringify(parsedMessage, null, 2));
+        
+        let enrichedTask: EnrichedDialTask | null = null;
+        
+        // Check if message is already enriched (has campaign property)
+        if (parsedMessage.campaign && parsedMessage.campaign.config) {
+          console.log(`Message ${record.messageId} is already enriched`);
+          enrichedTask = parsedMessage as EnrichedDialTask;
+        } else {
+          console.log(`Message ${record.messageId} needs enrichment`);
+          // Treat as raw dial task message and enrich it
+          enrichedTask = await enrichDialTask(parsedMessage as DialTaskMessage);
+        }
+        
+        if (enrichedTask) {
+          dialTasks.push({
+            task: enrichedTask,
+            messageId: record.messageId
+          });
+        } else {
+          console.warn(`Failed to enrich or invalid message for record ${record.messageId}`);
+          // Don't add to batch failures - let invalid messages be discarded
+        }
       } catch (error) {
-        console.error('Failed to parse SQS record body:', record.body, error);
+        console.error('Failed to parse or enrich SQS record:', record.body, error);
         batchItemFailures.push({ itemIdentifier: record.messageId });
-        return null;
       }
-    }).filter(item => item !== null);
+    }
     
     console.log(`Processing ${dialTasks.length} dial tasks`);
     
@@ -391,8 +542,11 @@ export async function handler(event: SQSEvent): Promise<any> {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing Redis connection');
+  console.log('SIGTERM received, closing connections');
   if (redisClient) {
     await redisClient.quit();
+  }
+  if (pool) {
+    await pool.end();
   }
 });
