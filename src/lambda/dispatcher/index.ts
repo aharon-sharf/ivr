@@ -25,11 +25,8 @@ let cachedDbPassword: string | null = null;
 const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Redis client for blacklist cache
-const redisClient = createClient({
-  url: process.env.REDIS_URL,
-});
-
-redisClient.on('error', (err: Error) => console.error('Redis Client Error', err));
+let redisClient: any = null;
+let cachedRedisPassword: string | null = null;
 
 interface DispatcherInput {
   campaignId: string;
@@ -60,6 +57,88 @@ interface Contact {
 const BATCH_SIZE = 100; // Number of contacts to dispatch per invocation
 const MAX_ATTEMPTS = 3; // Maximum call attempts per contact
 const SQS_BATCH_SIZE = 10; // SQS SendMessageBatch limit
+
+/**
+ * Get Redis password from AWS Secrets Manager
+ */
+async function getRedisPassword(): Promise<string> {
+  if (cachedRedisPassword) {
+    return cachedRedisPassword;
+  }
+
+  try {
+    const secretArn = process.env.REDIS_PASSWORD_SECRET;
+
+    if (!secretArn) {
+      console.warn('REDIS_PASSWORD_SECRET not set, connecting without password');
+      return '';
+    }
+
+    if (!secretsClient) {
+      secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    }
+
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
+    const response = await secretsClient.send(command);
+
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedRedisPassword = secret.password as string;
+      return cachedRedisPassword;
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error retrieving Redis password:', error);
+    return '';
+  }
+}
+
+/**
+ * Get Redis client with authentication
+ */
+async function getRedisClient(): Promise<any> {
+  if (!redisClient) {
+    try {
+      const redisHost = process.env.REDIS_ENDPOINT;
+      const redisPort = process.env.REDIS_PORT || '6379';
+      
+      // If Redis endpoint is not configured, skip Redis
+      if (!redisHost) {
+        console.warn('REDIS_ENDPOINT not configured, Redis caching disabled');
+        return null;
+      }
+      
+      const redisPassword = await getRedisPassword();
+      
+      const redisUrl = redisPassword
+        ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
+        : `redis://${redisHost}:${redisPort}`;
+      
+      console.log(`Connecting to Redis at ${redisHost}:${redisPort}`);
+      
+      redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 5000, // 5 second timeout
+        }
+      });
+      
+      redisClient.on('error', (err: Error) => {
+        console.error('Redis Client Error', err);
+        // Don't throw, just log
+      });
+      
+      await redisClient.connect();
+      console.log('Redis client connected successfully');
+    } catch (error) {
+      console.error('Failed to connect to Redis, continuing without cache:', error);
+      redisClient = null;
+      return null;
+    }
+  }
+  return redisClient;
+}
 
 /**
  * Get database password from AWS Secrets Manager
@@ -142,9 +221,13 @@ export async function handler(event: DispatcherInput): Promise<DispatcherOutput>
   }
 
   try {
+    // Initialize database connection pool
+    await getPool();
+
     // Connect to Redis if not already connected
-    if (!redisClient.isOpen) {
-      await redisClient.connect();
+    const redis = await getRedisClient();
+    if (redis && !redis.isOpen) {
+      await redis.connect();
     }
 
     // Fetch campaign details
@@ -331,7 +414,13 @@ async function queryEligibleContacts(
  */
 async function checkBlacklist(phoneNumber: string): Promise<boolean> {
   try {
-    const cached = await redisClient.get(`blacklist:${phoneNumber}`);
+    const redis = await getRedisClient();
+    if (!redis) {
+      // If Redis is not available, fall back to database
+      return await checkBlacklistDB(phoneNumber);
+    }
+
+    const cached = await redis.get(`blacklist:${phoneNumber}`);
     return cached === '1';
   } catch (error) {
     console.error('Error checking blacklist cache:', error);
@@ -481,7 +570,7 @@ process.on('SIGTERM', async () => {
   if (pool) {
     await pool.end();
   }
-  if (redisClient.isOpen) {
+  if (redisClient && redisClient.isOpen) {
     await redisClient.quit();
   }
 });

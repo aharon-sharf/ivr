@@ -178,7 +178,9 @@ resource "aws_lambda_function" "dispatcher" {
       DB_NAME              = var.rds_database_name
       DB_USER              = var.rds_username
       DB_SECRET_ARN        = var.rds_master_secret_arn
-      REDIS_URL            = "redis://${aws_instance.asterisk.private_ip}:6379"
+      REDIS_ENDPOINT       = aws_instance.asterisk.private_ip
+      REDIS_PORT           = "6379"
+      REDIS_PASSWORD_SECRET = aws_secretsmanager_secret.redis_password.arn
       DIAL_TASKS_QUEUE_URL = var.dial_tasks_queue_url
     }
   }
@@ -313,8 +315,18 @@ resource "aws_lambda_function" "dialer_worker" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT           = var.environment
+      REDIS_ENDPOINT        = aws_instance.asterisk.private_ip
+      REDIS_PORT            = "6379"
+      REDIS_PASSWORD_SECRET = aws_secretsmanager_secret.redis_password.arn
+      NODE_WORKER_URL       = "http://${aws_instance.asterisk.private_ip}:3000"
+      MAX_CPS               = "100"
     }
+  }
+
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.lambda.id]
   }
 
   tags = var.tags

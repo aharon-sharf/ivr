@@ -17,13 +17,18 @@
 
 import { SQSEvent, SQSRecord } from 'aws-lambda';
 import { createClient, RedisClientType } from 'redis';
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import axios from 'axios';
 
 // Redis client
 let redisClient: RedisClientType | null = null;
+let cachedRedisPassword: string | null = null;
+
+// AWS clients
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Configuration
-const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+const REDIS_ENDPOINT = process.env.REDIS_ENDPOINT || 'localhost';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
 const NODE_WORKER_URL = process.env.NODE_WORKER_URL || 'http://localhost:3000';
 const MAX_CPS = parseInt(process.env.MAX_CPS || '100'); // Maximum calls per second
@@ -86,23 +91,68 @@ interface BatchProcessingResult {
 }
 
 /**
+ * Get Redis password from AWS Secrets Manager
+ */
+async function getRedisPassword(): Promise<string> {
+  if (cachedRedisPassword) {
+    return cachedRedisPassword;
+  }
+
+  try {
+    const secretArn = process.env.REDIS_PASSWORD_SECRET;
+
+    if (!secretArn) {
+      console.warn('REDIS_PASSWORD_SECRET not set, connecting without password');
+      return '';
+    }
+
+    const command = new GetSecretValueCommand({ SecretId: secretArn });
+    const response = await secretsClient.send(command);
+
+    if (response.SecretString) {
+      const secret = JSON.parse(response.SecretString);
+      cachedRedisPassword = secret.password as string;
+      return cachedRedisPassword;
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error retrieving Redis password:', error);
+    return '';
+  }
+}
+
+/**
  * Initialize Redis client
  */
 async function getRedisClient(): Promise<RedisClientType> {
   if (!redisClient) {
-    redisClient = createClient({
-      socket: {
-        host: REDIS_HOST,
-        port: REDIS_PORT,
-      },
-    });
-    
-    redisClient.on('error', (err) => {
-      console.error('Redis Client Error:', err);
-    });
-    
-    await redisClient.connect();
-    console.log('Redis client connected');
+    try {
+      const redisPassword = await getRedisPassword();
+      
+      const redisUrl = redisPassword
+        ? `redis://:${redisPassword}@${REDIS_ENDPOINT}:${REDIS_PORT}`
+        : `redis://${REDIS_ENDPOINT}:${REDIS_PORT}`;
+      
+      console.log(`Connecting to Redis at ${REDIS_ENDPOINT}:${REDIS_PORT}`);
+      
+      redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 5000,
+        },
+      });
+      
+      redisClient.on('error', (err) => {
+        console.error('Redis Client Error:', err);
+      });
+      
+      await redisClient.connect();
+      console.log('Redis client connected');
+    } catch (error) {
+      console.error('Failed to connect to Redis:', error);
+      throw error;
+    }
   }
   
   return redisClient;
