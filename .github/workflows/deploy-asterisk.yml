@@ -86,91 +86,37 @@ jobs:
         run: |
           mkdir -p /tmp/asterisk-worker
           
-          # Create basic Node.js worker structure
-          cat > /tmp/asterisk-worker/package.json << 'EOF'
-          {
-            "name": "asterisk-worker",
-            "version": "1.0.0",
-            "description": "Node.js worker for Asterisk AMI/ARI integration",
-            "main": "index.js",
-            "engines": {
-              "node": ">=24.0.0"
-            },
-            "scripts": {
-              "start": "node index.js"
-            },
-            "dependencies": {
-              "express": "^4.18.2",
-              "asterisk-manager": "^0.1.16",
-              "ari-client": "^2.2.0",
-              "redis": "^4.6.5"
-            }
-          }
-          EOF
-          
-          # Create basic worker script
-          cat > /tmp/asterisk-worker/index.js << 'EOF'
-          const express = require('express');
-          const app = express();
-          const port = process.env.PORT || 3000;
-          
-          app.use(express.json());
-          
-          // Health check endpoint
-          app.get('/health', (req, res) => {
-            res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-          });
-          
-          // Call started webhook
-          app.post('/call-started', (req, res) => {
-            console.log('Call started:', req.body);
-            res.json({ status: 'received' });
-          });
-          
-          // DTMF action webhook
-          app.post('/dtmf-action', (req, res) => {
-            console.log('DTMF action:', req.body);
-            res.json({ status: 'processed' });
-          });
-          
-          // Call timeout webhook
-          app.post('/call-timeout', (req, res) => {
-            console.log('Call timeout:', req.body);
-            res.json({ status: 'logged' });
-          });
-          
-          // Call ended webhook
-          app.post('/call-ended', (req, res) => {
-            console.log('Call ended:', req.body);
-            res.json({ status: 'logged' });
-          });
-          
-          // Call failed webhook
-          app.post('/call-failed', (req, res) => {
-            console.log('Call failed:', req.body);
-            res.json({ status: 'logged' });
-          });
-          
-          app.listen(port, () => {
-            console.log(`Asterisk worker listening on port ${port}`);
-          });
-          EOF
+          # Copy actual source code from repository
+          cp -r src/asterisk-worker/* /tmp/asterisk-worker/
           
           # Create systemd service file
           cat > /tmp/asterisk-worker/asterisk-worker.service << 'EOF'
           [Unit]
-          Description=Asterisk Node.js Worker
+          Description=Asterisk Node.js Worker - AMI/ARI Controller
           After=network.target asterisk.service
+          Requires=asterisk.service
           
           [Service]
           Type=simple
-          User=asterisk
+          User=ec2-user
           WorkingDirectory=/opt/asterisk-worker
-          ExecStart=/usr/bin/node index.js
+          ExecStart=/usr/bin/node /opt/asterisk-worker/index.js
           Restart=always
           RestartSec=10
-          Environment=NODE_ENV=production
-          Environment=PORT=3000
+          StandardOutput=journal
+          StandardError=journal
+          SyslogIdentifier=asterisk-worker
+          
+          # Environment variables
+          Environment="NODE_ENV=production"
+          Environment="PORT=3000"
+          Environment="AMI_HOST=localhost"
+          Environment="AMI_PORT=5038"
+          Environment="AMI_USERNAME=admin"
+          Environment="ARI_HOST=localhost"
+          Environment="ARI_PORT=8088"
+          Environment="ARI_USERNAME=asterisk"
+          Environment="AWS_REGION=il-central-1"
           
           [Install]
           WantedBy=multi-user.target
