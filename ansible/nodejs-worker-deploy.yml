@@ -57,10 +57,9 @@
       when: worker_package_stat.stat.exists
 
     - name: Create systemd service file for Node.js worker
-      copy:
-        src: "{{ nodejs_worker_dir }}/asterisk-worker.service"
+      template:
+        src: templates/asterisk-worker.service.j2
         dest: /etc/systemd/system/asterisk-worker.service
-        remote_src: yes
         owner: root
         group: root
         mode: '0644'
@@ -73,11 +72,11 @@
         content: |
           [Unit]
           Description=Asterisk Node.js Worker (Placeholder)
-          After=network.target asterisk.service
+          After=network.target asterisk.service redis6.service
           
           [Service]
           Type=simple
-          User=asterisk
+          User=ec2-user
           WorkingDirectory=/opt/asterisk-worker
           ExecStart=/bin/echo "Node.js worker not deployed yet"
           Restart=no

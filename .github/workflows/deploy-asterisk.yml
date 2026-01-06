@@ -89,38 +89,8 @@ jobs:
           # Copy actual source code from repository
           cp -r src/asterisk-worker/* /tmp/asterisk-worker/
           
-          # Create systemd service file
-          cat > /tmp/asterisk-worker/asterisk-worker.service << 'EOF'
-          [Unit]
-          Description=Asterisk Node.js Worker - AMI/ARI Controller
-          After=network.target asterisk.service
-          Requires=asterisk.service
-          
-          [Service]
-          Type=simple
-          User=ec2-user
-          WorkingDirectory=/opt/asterisk-worker
-          ExecStart=/usr/bin/node /opt/asterisk-worker/index.js
-          Restart=always
-          RestartSec=10
-          StandardOutput=journal
-          StandardError=journal
-          SyslogIdentifier=asterisk-worker
-          
-          # Environment variables
-          Environment="NODE_ENV=production"
-          Environment="PORT=3000"
-          Environment="AMI_HOST=localhost"
-          Environment="AMI_PORT=5038"
-          Environment="AMI_USERNAME=admin"
-          Environment="ARI_HOST=localhost"
-          Environment="ARI_PORT=8088"
-          Environment="ARI_USERNAME=asterisk"
-          Environment="AWS_REGION=il-central-1"
-          
-          [Install]
-          WantedBy=multi-user.target
-          EOF
+          # Copy systemd service template
+          cp ansible/templates/asterisk-worker.service.j2 /tmp/asterisk-worker/asterisk-worker.service.j2
           
           # Create deployment package
           cd /tmp/asterisk-worker
