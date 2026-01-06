@@ -359,16 +359,16 @@ function originateCall(dialCommand) {
       callId,
       phoneNumber,
       campaignId,
-      contactId,
-      audioFileUrl,
+      contactId: contactId || 'unknown',
+      audioFileUrl: audioFileUrl || 'default-message',
       ivrFlow,
-      metadata,
+      metadata: metadata || {},
       state: 'originating',
       startTime: new Date(),
       dtmfInputs: []
     });
 
-    // AMI Originate action
+    // AMI Originate action - ensure all variables are strings
     const action = {
       action: 'Originate',
       channel: `PJSIP/${phoneNumber}@019-trunk`, // Adjust based on your trunk configuration
@@ -376,15 +376,17 @@ function originateCall(dialCommand) {
       exten: phoneNumber,
       priority: 1,
       timeout: 30000, // 30 seconds
-      callerid: metadata?.callerIdNumber || 'Campaign',
+      callerid: (metadata && metadata.callerIdNumber) ? metadata.callerIdNumber : 'Campaign',
       variable: {
-        CAMPAIGN_ID: campaignId,
-        CONTACT_ID: contactId,
-        CALL_ID: callId,
-        AUDIO_FILE: audioFileUrl || 'default-message'
+        CAMPAIGN_ID: String(campaignId || ''),
+        CONTACT_ID: String(contactId || ''),
+        CALL_ID: String(callId || ''),
+        AUDIO_FILE: String(audioFileUrl || 'default-message')
       },
       async: true
     };
+
+    logger.info(`AMI Originate action:`, action);
 
     amiClient.action(action, (err, response) => {
       if (err) {
@@ -431,8 +433,19 @@ app.post('/dial', async (req, res) => {
       });
     }
 
+    // Ensure all fields have default values to prevent undefined errors
+    const sanitizedDialCommand = {
+      callId: dialCommand.callId,
+      phoneNumber: dialCommand.phoneNumber,
+      campaignId: dialCommand.campaignId,
+      contactId: dialCommand.contactId || 'unknown',
+      audioFileUrl: dialCommand.audioFileUrl || 'default-message',
+      ivrFlow: dialCommand.ivrFlow || null,
+      metadata: dialCommand.metadata || {}
+    };
+
     // Originate call
-    const result = await originateCall(dialCommand);
+    const result = await originateCall(sanitizedDialCommand);
 
     res.json({
       success: true,
