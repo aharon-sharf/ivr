@@ -11,21 +11,21 @@ asterisk_version: "23.1.0"
 # SIP Trunk Configuration (Israeli Provider)
 sip_trunk_provider: "019"  # or "Partner"
 sip_trunk_host: "sip.019.co.il"  # Replace with actual provider SIP server
-sip_trunk_username: "{{ lookup('env', 'SIP_TRUNK_USERNAME') }}"
-sip_trunk_password: "{{ lookup('env', 'SIP_TRUNK_PASSWORD') }}"
+sip_trunk_username: "{{ lookup('env', 'SIP_TRUNK_USERNAME') | default('demo_user', true) }}"
+sip_trunk_password: "{{ lookup('env', 'SIP_TRUNK_PASSWORD') | default('demo_pass', true) }}"
 sip_trunk_context: "from-trunk"
 
 # AMI Configuration
 ami_enabled: true
 ami_port: 5038
 ami_username: "admin"
-ami_password: "{{ lookup('env', 'AMI_PASSWORD') }}"
+ami_password: "{{ lookup('env', 'AMI_PASSWORD') | default('asterisk_ami_secure_2023', true) }}"
 
 # ARI Configuration
 ari_enabled: true
 ari_port: 8088
 ari_username: "asterisk"
-ari_password: "{{ lookup('env', 'ARI_PASSWORD') }}"
+ari_password: "{{ lookup('env', 'ARI_PASSWORD') | default('asterisk_ari_secure_2023', true) }}"
 
 # RTP Port Range
 rtp_start: 10000
@@ -36,7 +36,7 @@ nodejs_worker_port: 3000
 nodejs_worker_dir: "/opt/asterisk-worker"
 
 # AWS Configuration
-s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') }}"
+s3_audio_bucket: "{{ lookup('env', 'S3_AUDIO_BUCKET') | default('demo-audio-bucket', true) }}"
 
 # Logging
 asterisk_log_level: "verbose,debug,notice,warning,error"

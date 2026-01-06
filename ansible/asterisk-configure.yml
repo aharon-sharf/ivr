@@ -71,9 +71,9 @@
 
     # ===== AMI Configuration =====
     - name: Configure Asterisk Manager Interface (AMI)
-      blockinfile:
-        path: /etc/asterisk/manager.conf
-        block: |
+      copy:
+        dest: /etc/asterisk/manager.conf
+        content: |
           [general]
           enabled = yes
           port = {{ ami_port }}
@@ -88,12 +88,16 @@
           permit=192.168.0.0/255.255.0.0
           read = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan
           write = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan,originate
+        owner: asterisk
+        group: asterisk
+        mode: '0644'
+      notify: reload asterisk
 
     # ===== ARI Configuration =====
     - name: Configure Asterisk REST Interface (ARI)
-      blockinfile:
-        path: /etc/asterisk/ari.conf
-        block: |
+      copy:
+        dest: /etc/asterisk/ari.conf
+        content: |
           [general]
           enabled = yes
           pretty = yes
@@ -102,11 +106,15 @@
           type = user
           read_only = no
           password = {{ ari_password }}
+        owner: asterisk
+        group: asterisk
+        mode: '0644'
+      notify: reload asterisk
 
     - name: Configure HTTP server for ARI
-      blockinfile:
-        path: /etc/asterisk/http.conf
-        block: |
+      copy:
+        dest: /etc/asterisk/http.conf
+        content: |
           [general]
           enabled=yes
           bindaddr=0.0.0.0
@@ -117,6 +125,10 @@
           tlsprivatekey=/etc/asterisk/keys/asterisk.key
           enablestatic=yes
           redirect = / /httpstatus
+        owner: asterisk
+        group: asterisk
+        mode: '0644'
+      notify: reload asterisk
 
     # ===== Dialplan Configuration =====
     - name: Create IVR dialplan
@@ -254,3 +266,7 @@
     - name: Display AMI settings
       debug:
         msg: "{{ ami_settings.stdout_lines }}"
+
+  handlers:
+    - name: reload asterisk
+      command: asterisk -rx "core reload"
