@@ -206,13 +206,31 @@
 
           ; ===== Outbound Call Context (for originating calls) =====
           [outbound-campaign]
-          exten => _X.,1,NoOp(Outbound call to ${EXTEN})
-           same => n,Set(CALLERID(num)=${CAMPAIGN_CALLER_ID})
+          ; Handle any digit sequence (normalized phone numbers)
+          exten => _X.,1,NoOp(Outbound call to ${EXTEN} - Original: ${ORIGINAL_PHONE})
+           same => n,Set(CALLERID(num)=${CAMPAIGN_CALLER_ID:-Campaign})
            same => n,Set(CALL_ID=${UNIQUEID})
+           same => n,NoOp(Attempting to dial via trunk: {{ sip_trunk_provider }}-trunk)
            same => n,Dial(PJSIP/${EXTEN}@{{ sip_trunk_provider }}-trunk,30,g)
+           same => n,NoOp(Dial completed with status: ${DIALSTATUS})
            same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?answered:not-answered)
-           same => n(answered),Goto(ivr-main,s,1)
+           same => n(answered),NoOp(Call answered, starting IVR)
+           same => n,Goto(ivr-main,s,1)
            same => n(not-answered),NoOp(Call not answered: ${DIALSTATUS})
+           same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-failed,call_id=${CALL_ID}&status=${DIALSTATUS})})
+           same => n,Hangup()
+          
+          ; Handle any other pattern as fallback
+          exten => _.,1,NoOp(Fallback pattern for extension: ${EXTEN})
+           same => n,Set(CALLERID(num)=${CAMPAIGN_CALLER_ID:-Campaign})
+           same => n,Set(CALL_ID=${UNIQUEID})
+           same => n,NoOp(Attempting fallback dial via trunk: {{ sip_trunk_provider }}-trunk)
+           same => n,Dial(PJSIP/${EXTEN}@{{ sip_trunk_provider }}-trunk,30,g)
+           same => n,NoOp(Fallback dial completed with status: ${DIALSTATUS})
+           same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?answered:not-answered)
+           same => n(answered),NoOp(Fallback call answered, starting IVR)
+           same => n,Goto(ivr-main,s,1)
+           same => n(not-answered),NoOp(Fallback call not answered: ${DIALSTATUS})
            same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-failed,call_id=${CALL_ID}&status=${DIALSTATUS})})
            same => n,Hangup()
 

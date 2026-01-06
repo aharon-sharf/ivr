@@ -354,10 +354,23 @@ function originateCall(dialCommand) {
 
     logger.info(`Originating call ${callId} to ${phoneNumber}`);
 
+    // Normalize phone number - remove + and any non-digit characters for Asterisk
+    const normalizedPhoneNumber = phoneNumber.replace(/[^\d]/g, '');
+    
+    if (!normalizedPhoneNumber) {
+      const error = new Error(`Invalid phone number: ${phoneNumber}`);
+      logger.error(`Failed to originate call ${callId}:`, error);
+      reject(error);
+      return;
+    }
+
+    logger.info(`Normalized phone number: ${phoneNumber} -> ${normalizedPhoneNumber}`);
+
     // Store call info
     activeCalls.set(callId, {
       callId,
-      phoneNumber,
+      phoneNumber: normalizedPhoneNumber,
+      originalPhoneNumber: phoneNumber,
       campaignId,
       contactId: contactId || 'unknown',
       audioFileUrl: audioFileUrl || 'default-message',
@@ -371,9 +384,9 @@ function originateCall(dialCommand) {
     // AMI Originate action - ensure all variables are strings
     const action = {
       action: 'Originate',
-      channel: `PJSIP/${phoneNumber}@019-trunk`, // Adjust based on your trunk configuration
+      channel: `PJSIP/${normalizedPhoneNumber}@019-trunk`, // Use normalized number
       context: 'outbound-campaign',
-      exten: phoneNumber,
+      exten: normalizedPhoneNumber, // Use normalized number
       priority: 1,
       timeout: 30000, // 30 seconds
       callerid: (metadata && metadata.callerIdNumber) ? metadata.callerIdNumber : 'Campaign',
@@ -381,7 +394,8 @@ function originateCall(dialCommand) {
         CAMPAIGN_ID: String(campaignId || ''),
         CONTACT_ID: String(contactId || ''),
         CALL_ID: String(callId || ''),
-        AUDIO_FILE: String(audioFileUrl || 'default-message')
+        AUDIO_FILE: String(audioFileUrl || 'default-message'),
+        ORIGINAL_PHONE: String(phoneNumber || '') // Keep original for reference
       },
       async: true
     };
