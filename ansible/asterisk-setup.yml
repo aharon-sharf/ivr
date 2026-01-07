@@ -66,6 +66,7 @@
           - automake
           - git
           - subversion
+          - libcurl-devel
         state: present
 
     - name: Download Asterisk source
@@ -409,6 +410,19 @@
     - name: Display Redis status
       debug:
         msg: "Redis is running and responding to commands"
+
+    # CURL Module Verification
+    - name: Verify CURL modules are loaded
+      command: asterisk -rx "module show like curl"
+      register: curl_modules_check
+      changed_when: false
+      retries: 3
+      delay: 2
+      until: curl_modules_check.rc == 0
+
+    - name: Display CURL modules status
+      debug:
+        msg: "{{ curl_modules_check.stdout_lines }}"
 
   handlers:
     - name: restart redis

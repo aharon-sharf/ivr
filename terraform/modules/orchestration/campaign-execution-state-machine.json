@@ -118,7 +118,7 @@
         {
           "Variable": "$.statusResult.status",
           "StringEquals": "completed",
-          "Next": "GenerateReport"
+          "Next": "NotifyUser"
         },
         {
           "Variable": "$.statusResult.status",
@@ -206,7 +206,7 @@
           "status": "completed",
           "totalContacts.$": "$.statusResult.totalContacts",
           "completedContacts.$": "$.statusResult.completedContacts",
-          "reportUrl.$": "$.reportResult.Payload.reportUrl",
+
           "executionId.$": "$$.Execution.Id"
         }
       },
