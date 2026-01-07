@@ -153,46 +153,6 @@
       "Type": "Succeed",
       "Comment": "Campaign was cancelled by user"
     },
-    "GenerateReport": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Comment": "Generate comprehensive campaign report",
-      "Parameters": {
-        "FunctionName": "${report_generator_lambda_arn}",
-        "Payload": {
-          "campaignId.$": "$.campaignId",
-          "executionId.$": "$$.Execution.Id"
-        }
-      },
-      "ResultPath": "$.reportResult",
-      "Next": "NotifyUser",
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "ReportGenerationFailed"
-        }
-      ],
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed", "States.Timeout"],
-          "IntervalSeconds": 5,
-          "MaxAttempts": 2,
-          "BackoffRate": 2.0
-        }
-      ],
-      "TimeoutSeconds": 120
-    },
-    "ReportGenerationFailed": {
-      "Type": "Pass",
-      "Comment": "Report generation failed but campaign completed successfully",
-      "Result": {
-        "reportStatus": "failed",
-        "message": "Campaign completed but report generation failed"
-      },
-      "ResultPath": "$.reportResult",
-      "Next": "NotifyUser"
-    },
     "NotifyUser": {
       "Type": "Task",
       "Resource": "arn:aws:states:::sns:publish",
@@ -206,8 +166,7 @@
           "status": "completed",
           "totalContacts.$": "$.statusResult.totalContacts",
           "completedContacts.$": "$.statusResult.completedContacts",
-
-          "executionId.$": "$$.Execution.Id"
+          "executionId.$": "$.Execution.Id"
         }
       },
       "ResultPath": "$.notificationResult",
@@ -236,7 +195,7 @@
           "campaignName.$": "$.campaignName",
           "status": "failed",
           "error.$": "$.error",
-          "executionId.$": "$$.Execution.Id"
+          "executionId.$": "$.Execution.Id"
         }
       },
       "ResultPath": "$.notificationResult",

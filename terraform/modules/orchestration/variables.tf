@@ -25,10 +25,6 @@ variable "status_checker_lambda_arn" {
   type        = string
 }
 
-variable "report_generator_lambda_arn" {
-  description = "Report Generator Lambda ARN"
-  type        = string
-}
 
 variable "campaign_orchestrator_lambda_arn" {
   description = "Campaign Orchestrator Lambda ARN"

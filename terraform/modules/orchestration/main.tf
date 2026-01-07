@@ -36,8 +36,7 @@ resource "aws_iam_role_policy" "step_functions_policy" {
         Resource = [
           var.validate_campaign_lambda_arn,
           var.dispatcher_lambda_arn,
-          var.status_checker_lambda_arn,
-          var.report_generator_lambda_arn
+          var.status_checker_lambda_arn
         ]
       },
       {
@@ -99,7 +98,6 @@ resource "aws_sfn_state_machine" "campaign_execution" {
     validate_campaign_lambda_arn     = var.validate_campaign_lambda_arn
     dispatcher_lambda_arn            = var.dispatcher_lambda_arn
     status_checker_lambda_arn        = var.status_checker_lambda_arn
-    report_generator_lambda_arn      = var.report_generator_lambda_arn
     campaign_notifications_topic_arn = var.campaign_notifications_topic_arn
   })
 
