@@ -250,6 +250,11 @@ jobs:
             $PLAYBOOK
         env:
           ANSIBLE_HOST_KEY_CHECKING: False
+          SIP_TRUNK_USERNAME: ${{ secrets.SIP_TRUNK_USERNAME }}
+          SIP_TRUNK_PASSWORD: ${{ secrets.SIP_TRUNK_PASSWORD }}
+          AMI_PASSWORD: ${{ secrets.AMI_PASSWORD }}
+          ARI_PASSWORD: ${{ secrets.ARI_PASSWORD }}
+          S3_AUDIO_BUCKET: ${{ secrets.S3_AUDIO_BUCKET }}
       
       - name: Restart Asterisk services
         working-directory: ansible
@@ -390,6 +395,11 @@ jobs:
             $PLAYBOOK
         env:
           ANSIBLE_HOST_KEY_CHECKING: False
+          SIP_TRUNK_USERNAME: ${{ secrets.SIP_TRUNK_USERNAME }}
+          SIP_TRUNK_PASSWORD: ${{ secrets.SIP_TRUNK_PASSWORD }}
+          AMI_PASSWORD: ${{ secrets.AMI_PASSWORD }}
+          ARI_PASSWORD: ${{ secrets.ARI_PASSWORD }}
+          S3_AUDIO_BUCKET: ${{ secrets.S3_AUDIO_BUCKET }}
       
       - name: Restart Asterisk services
         working-directory: ansible
@@ -528,6 +538,11 @@ jobs:
             $PLAYBOOK
         env:
           ANSIBLE_HOST_KEY_CHECKING: False
+          SIP_TRUNK_USERNAME: ${{ secrets.SIP_TRUNK_USERNAME }}
+          SIP_TRUNK_PASSWORD: ${{ secrets.SIP_TRUNK_PASSWORD }}
+          AMI_PASSWORD: ${{ secrets.AMI_PASSWORD }}
+          ARI_PASSWORD: ${{ secrets.ARI_PASSWORD }}
+          S3_AUDIO_BUCKET: ${{ secrets.S3_AUDIO_BUCKET }}
       
       - name: Restart Asterisk services
         working-directory: ansible

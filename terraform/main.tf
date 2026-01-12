@@ -156,6 +156,11 @@ module "compute" {
   # Step Functions
   step_functions_state_machine_arn = module.orchestration.state_machine_arn
 
+  # Twilio SIP Configuration
+  sip_provider            = var.sip_provider
+  twilio_sip_ip_ranges    = var.twilio_sip_ip_ranges
+  twilio_media_ip_range   = var.twilio_media_ip_range
+
   tags = local.common_tags
 }
 

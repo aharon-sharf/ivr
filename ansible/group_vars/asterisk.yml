@@ -8,12 +8,26 @@ aws_region: "il-central-1"
 # Asterisk version
 asterisk_version: "23.1.0"
 
-# SIP Trunk Configuration (Israeli Provider)
-sip_trunk_provider: "019"  # or "Partner"
-sip_trunk_host: "sip.019.co.il"  # Replace with actual provider SIP server
+# SIP Trunk Configuration (Twilio Provider)
+sip_trunk_provider: "twilio"
+sip_trunk_host: "aharon-sharf-ivr.pstn.twilio.com"
 sip_trunk_username: "{{ lookup('env', 'SIP_TRUNK_USERNAME') | default('demo_user', true) }}"
 sip_trunk_password: "{{ lookup('env', 'SIP_TRUNK_PASSWORD') | default('demo_pass', true) }}"
 sip_trunk_context: "from-trunk"
+
+# Twilio SIP IP Ranges for Security Group
+twilio_sip_ip_ranges:
+  - "54.172.60.0/30"    # North America Virginia
+  - "54.244.51.0/30"    # North America Oregon
+  - "54.171.127.0/30"   # Europe Dublin
+  - "54.65.63.192/30"   # Asia Pacific Singapore
+  - "54.252.254.64/30"  # Asia Pacific Sydney
+  - "54.233.167.224/30" # South America São Paulo
+  - "35.156.191.128/30" # Europe Frankfurt
+  - "54.199.254.184/30" # Asia Pacific Tokyo
+
+# Twilio Media IP Range (Global)
+twilio_media_ip_range: "168.86.128.0/18"
 
 # AMI Configuration
 ami_enabled: true

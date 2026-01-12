@@ -407,40 +407,40 @@ resource "aws_security_group" "asterisk" {
     description = "SSH access"
   }
 
-  # SIP signaling (UDP)
+  # SIP signaling (UDP) - Twilio only
   ingress {
     from_port   = 5060
     to_port     = 5060
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SIP signaling UDP"
+    cidr_blocks = var.twilio_sip_ip_ranges
+    description = "SIP signaling UDP from Twilio"
   }
 
-  # SIP signaling (TCP)
+  # SIP signaling (TCP) - Twilio only
   ingress {
     from_port   = 5060
     to_port     = 5060
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SIP signaling TCP"
+    cidr_blocks = var.twilio_sip_ip_ranges
+    description = "SIP signaling TCP from Twilio"
   }
 
-  # SIP TLS
+  # SIP TLS - Twilio only
   ingress {
     from_port   = 5061
     to_port     = 5061
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SIP TLS"
+    cidr_blocks = var.twilio_sip_ip_ranges
+    description = "SIP TLS from Twilio"
   }
 
-  # RTP media streams
+  # RTP media streams - Twilio global range
   ingress {
     from_port   = 10000
     to_port     = 20000
     protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "RTP media streams"
+    cidr_blocks = [var.twilio_media_ip_range]
+    description = "RTP media streams from Twilio"
   }
 
   # Asterisk Manager Interface (AMI)

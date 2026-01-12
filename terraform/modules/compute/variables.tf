@@ -105,3 +105,30 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+# Twilio SIP Configuration
+variable "sip_provider" {
+  description = "SIP trunk provider name"
+  type        = string
+  default     = "twilio"
+}
+
+variable "twilio_sip_ip_ranges" {
+  description = "Twilio SIP IP ranges for security group"
+  type        = list(string)
+  default = [
+    "54.172.60.0/30",    # North America Virginia
+    "54.244.51.0/30",    # North America Oregon
+    "54.171.127.0/30",   # Europe Dublin
+    "54.65.63.192/30",   # Asia Pacific Singapore
+    "54.252.254.64/30",  # Asia Pacific Sydney
+    "54.233.167.224/30", # South America São Paulo
+    "35.156.191.128/30", # Europe Frankfurt
+    "54.199.254.184/30"  # Asia Pacific Tokyo
+  ]
+}
+
+variable "twilio_media_ip_range" {
+  description = "Twilio media IP range (global)"
+  type        = string
+  default     = "168.86.128.0/18"
+}
