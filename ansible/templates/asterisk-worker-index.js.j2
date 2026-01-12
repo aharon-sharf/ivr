@@ -194,15 +194,15 @@ app.post('/dial', async (req, res) => {
       Priority: 1,
       CallerID: `Campaign <${normalizedPhone}>`,
       Timeout: 30000,
-      Variables: {
-        CALL_ID: callId,
-        CAMPAIGN_ID: campaignId,
-        CONTACT_ID: contactId,
-        PHONE_NUMBER: normalizedPhone,
-        ORIGINAL_PHONE: normalizedPhone,
-        AUDIO_FILE_URL: audioFileUrl || '',
-        METADATA: JSON.stringify(metadata || {})
-      }
+      Variable: [
+        `CALL_ID=${callId}`,
+        `CAMPAIGN_ID=${campaignId}`,
+        `CONTACT_ID=${contactId}`,
+        `PHONE_NUMBER=${normalizedPhone}`,
+        `ORIGINAL_PHONE=${normalizedPhone}`,
+        `AUDIO_FILE_URL=${audioFileUrl || ''}`,
+        `METADATA=${JSON.stringify(metadata || {})}`
+      ]
     };
     
     console.log('Originating call with params:', originateParams);
