@@ -26,6 +26,9 @@
     "dotenv": "^16.3.1",
     "winston": "^3.11.0",
     "uuid": "^9.0.1",
+    "redis": "^4.6.0",
+    "pg": "^8.11.0",
+    "aws-sdk": "^2.1490.0",
     "@aws-sdk/client-s3": "^3.450.0",
     "@aws-sdk/client-sns": "^3.450.0",
     "@aws-sdk/client-polly": "^3.450.0"
