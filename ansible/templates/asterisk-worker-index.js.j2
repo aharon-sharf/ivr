@@ -193,16 +193,7 @@ app.post('/dial', async (req, res) => {
       Exten: dialExtension,
       Priority: 1,
       CallerID: `Campaign <${normalizedPhone}>`,
-      Timeout: 30000,
-      Variable: [
-        `CALL_ID=${callId}`,
-        `CAMPAIGN_ID=${campaignId}`,
-        `CONTACT_ID=${contactId}`,
-        `PHONE_NUMBER=${normalizedPhone}`,
-        `ORIGINAL_PHONE=${normalizedPhone}`,
-        `AUDIO_FILE_URL=${audioFileUrl || ''}`,
-        `METADATA=${JSON.stringify(metadata || {})}`
-      ]
+      Timeout: 30000
     };
     
     console.log('Originating call with params:', originateParams);
