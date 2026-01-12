@@ -186,8 +186,8 @@ app.post('/dial', async (req, res) => {
     
     const originateParams = {
       Channel: `PJSIP/${normalizedPhone}@${CONFIG.sip.trunk}`,
-      Context: 'campaign-context',
-      Exten: 'start',
+      Context: 'outbound-campaign',
+      Exten: normalizedPhone,
       Priority: 1,
       CallerID: `Campaign <${normalizedPhone}>`,
       Timeout: 30000,
@@ -196,6 +196,7 @@ app.post('/dial', async (req, res) => {
         CAMPAIGN_ID: campaignId,
         CONTACT_ID: contactId,
         PHONE_NUMBER: normalizedPhone,
+        ORIGINAL_PHONE: normalizedPhone,
         AUDIO_FILE_URL: audioFileUrl || '',
         METADATA: JSON.stringify(metadata || {})
       }
