@@ -198,9 +198,22 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Send AMI originate command (fire and forget for now)
+    // Send AMI originate command with detailed logging
     try {
-      ami.action('Originate', originateParams);
+      console.log('About to send AMI action...');
+      console.log('AMI connection status:', ami.connected);
+      
+      const actionResult = ami.action('Originate', originateParams, (err, result) => {
+        console.log('AMI Originate callback received');
+        if (err) {
+          console.error('AMI Originate callback error:', err);
+        } else {
+          console.log('AMI Originate callback result:', result);
+        }
+      });
+      
+      console.log('AMI action method returned:', actionResult);
+      console.log('AMI Originate command sent successfully');
       
       // Return success immediately
       res.json({ 
