@@ -113,7 +113,7 @@ function handleAsteriskEvent(event) {
       data: event
     };
     
-    redisClient.lpush('asterisk_events', JSON.stringify(eventData))
+    redisClient.lPush('asterisk_events', JSON.stringify(eventData))
       .catch(err => console.error('Redis push error:', err));
   }
 }
@@ -238,7 +238,7 @@ app.post('/call-started', async (req, res) => {
         timestamp: new Date().toISOString()
       };
       
-      await redisClient.hset(`call:${call_id}`, callData);
+      await redisClient.hSet(`call:${call_id}`, callData);
       await redisClient.expire(`call:${call_id}`, 3600); // Expire after 1 hour
     }
     
@@ -278,11 +278,11 @@ app.post('/dtmf-action', async (req, res) => {
         timestamp: new Date().toISOString()
       };
       
-      await redisClient.lpush(`dtmf:${call_id}`, JSON.stringify(dtmfData));
+      await redisClient.lPush(`dtmf:${call_id}`, JSON.stringify(dtmfData));
       await redisClient.expire(`dtmf:${call_id}`, 3600);
       
       // Update call status
-      await redisClient.hset(`call:${call_id}`, 'last_dtmf', dtmf, 'last_action', action);
+      await redisClient.hSet(`call:${call_id}`, 'last_dtmf', dtmf, 'last_action', action);
     }
     
     // Handle specific actions
@@ -316,7 +316,7 @@ app.post('/call-timeout', async (req, res) => {
     console.log(`Call timeout: ${call_id}`);
     
     if (redisClient) {
-      await redisClient.hset(`call:${call_id}`, 'status', 'timeout', 'ended_at', new Date().toISOString());
+      await redisClient.hSet(`call:${call_id}`, 'status', 'timeout', 'ended_at', new Date().toISOString());
     }
     
     if (pgPool) {
@@ -345,7 +345,7 @@ app.post('/call-failed', async (req, res) => {
     console.log(`Call failed: ${call_id}, Status: ${status}`);
     
     if (redisClient) {
-      await redisClient.hset(`call:${call_id}`, 'status', 'failed', 'dial_status', status, 'ended_at', new Date().toISOString());
+      await redisClient.hSet(`call:${call_id}`, 'status', 'failed', 'dial_status', status, 'ended_at', new Date().toISOString());
     }
     
     if (pgPool) {
@@ -374,7 +374,7 @@ app.post('/call-ended', async (req, res) => {
     console.log(`Call ended: ${call_id}, Duration: ${duration}, Status: ${status}`);
     
     if (redisClient) {
-      await redisClient.hset(`call:${call_id}`, 'status', 'ended', 'duration', duration, 'ended_at', new Date().toISOString());
+      await redisClient.hSet(`call:${call_id}`, 'status', 'ended', 'duration', duration, 'ended_at', new Date().toISOString());
     }
     
     if (pgPool) {
