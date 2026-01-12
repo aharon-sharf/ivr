@@ -198,11 +198,17 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Send AMI originate command with detailed logging
+    // Send AMI originate command using raw format
     try {
       console.log('About to send AMI action...');
       console.log('AMI connection status:', ami.connected);
       
+      // Try raw AMI command format
+      const amiCommand = `Action: Originate\r\nChannel: ${originateParams.Channel}\r\nContext: ${originateParams.Context}\r\nExten: ${originateParams.Exten}\r\nPriority: ${originateParams.Priority}\r\nCallerID: ${originateParams.CallerID}\r\nTimeout: ${originateParams.Timeout}\r\n\r\n`;
+      
+      console.log('Raw AMI command:', amiCommand);
+      
+      // Send using the library's action method
       const actionResult = ami.action('Originate', originateParams, (err, result) => {
         console.log('AMI Originate callback received');
         if (err) {
