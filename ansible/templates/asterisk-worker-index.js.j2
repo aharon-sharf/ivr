@@ -162,6 +162,76 @@ app.get('/health', (req, res) => {
   res.json(status);
 });
 
+// Dial endpoint - receives dial commands from Lambda
+app.post('/dial', async (req, res) => {
+  try {
+    const { callId, phoneNumber, campaignId, contactId, audioFileUrl, ivrFlow, metadata } = req.body;
+    
+    console.log(`Received dial command: ${callId}, Phone: ${phoneNumber}, Campaign: ${campaignId}`);
+    
+    if (!callId || !phoneNumber || !campaignId || !contactId) {
+      return res.status(400).json({ error: 'Missing required fields: callId, phoneNumber, campaignId, contactId' });
+    }
+    
+    // Normalize phone number
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhone) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+    
+    // Originate call using AMI
+    if (!ami || !ami.connected) {
+      return res.status(503).json({ error: 'AMI not connected' });
+    }
+    
+    const originateParams = {
+      Channel: `PJSIP/${normalizedPhone}@${CONFIG.sip.trunk}`,
+      Context: 'campaign-context',
+      Exten: 'start',
+      Priority: 1,
+      CallerID: `Campaign <${normalizedPhone}>`,
+      Timeout: 30000,
+      Variables: {
+        CALL_ID: callId,
+        CAMPAIGN_ID: campaignId,
+        CONTACT_ID: contactId,
+        PHONE_NUMBER: normalizedPhone,
+        AUDIO_FILE_URL: audioFileUrl || '',
+        METADATA: JSON.stringify(metadata || {})
+      }
+    };
+    
+    console.log('Originating call with params:', originateParams);
+    
+    ami.action('Originate', originateParams, (err, result) => {
+      if (err) {
+        console.error('AMI Originate error:', err);
+        return res.status(500).json({ error: 'Failed to originate call', details: err.message });
+      }
+      
+      console.log('AMI Originate result:', result);
+      
+      if (result && result.response === 'Success') {
+        res.json({ 
+          success: true, 
+          callId: callId,
+          message: 'Call originated successfully',
+          channel: originateParams.Channel
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Failed to originate call', 
+          details: result ? result.message : 'Unknown error' 
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Dial endpoint error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Originate a call
 app.post('/originate-call', async (req, res) => {
   try {
