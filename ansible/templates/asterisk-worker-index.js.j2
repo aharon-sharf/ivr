@@ -207,42 +207,21 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Use Promise with timeout for AMI action
-    const originatePromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('AMI action timeout'));
-      }, 4000); // 4 second timeout
-      
-      ami.action('Originate', originateParams, (err, result) => {
-        clearTimeout(timeout);
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-    
+    // Send AMI originate command (fire and forget for now)
     try {
-      const result = await originatePromise;
-      console.log('AMI Originate result:', result);
+      ami.action('Originate', originateParams);
       
-      if (result && result.response === 'Success') {
-        res.json({ 
-          success: true, 
-          callId: callId,
-          message: 'Call originated successfully',
-          channel: originateParams.Channel
-        });
-      } else {
-        res.status(500).json({ 
-          error: 'Failed to originate call', 
-          details: result ? result.message : 'Unknown error' 
-        });
-      }
+      // Return success immediately
+      res.json({ 
+        success: true, 
+        callId: callId,
+        message: 'Call originate command sent',
+        channel: originateParams.Channel
+      });
+      
     } catch (amiError) {
       console.error('AMI Originate error:', amiError);
-      res.status(500).json({ error: 'Failed to originate call', details: amiError.message });
+      res.status(500).json({ error: 'Failed to send originate command', details: amiError.message });
     }
     
   } catch (error) {
