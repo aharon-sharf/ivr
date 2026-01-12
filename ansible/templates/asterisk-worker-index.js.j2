@@ -179,7 +179,7 @@ app.post('/dial', async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
     
-    // Originate call using AMI
+    // Check AMI connection
     if (!ami || !ami.connected) {
       return res.status(503).json({ error: 'AMI not connected' });
     }
@@ -203,12 +203,24 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    ami.action('Originate', originateParams, (err, result) => {
-      if (err) {
-        console.error('AMI Originate error:', err);
-        return res.status(500).json({ error: 'Failed to originate call', details: err.message });
-      }
+    // Use Promise with timeout for AMI action
+    const originatePromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('AMI action timeout'));
+      }, 4000); // 4 second timeout
       
+      ami.action('Originate', originateParams, (err, result) => {
+        clearTimeout(timeout);
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+    try {
+      const result = await originatePromise;
       console.log('AMI Originate result:', result);
       
       if (result && result.response === 'Success') {
@@ -224,7 +236,10 @@ app.post('/dial', async (req, res) => {
           details: result ? result.message : 'Unknown error' 
         });
       }
-    });
+    } catch (amiError) {
+      console.error('AMI Originate error:', amiError);
+      res.status(500).json({ error: 'Failed to originate call', details: amiError.message });
+    }
     
   } catch (error) {
     console.error('Dial endpoint error:', error);
