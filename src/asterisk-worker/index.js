@@ -384,7 +384,7 @@ function originateCall(dialCommand) {
     // AMI Originate action - ensure all variables are strings
     const action = {
       action: 'Originate',
-      channel: `PJSIP/${normalizedPhoneNumber}@019-trunk`, // Use normalized number
+      channel: `PJSIP/${normalizedPhoneNumber}@{{ sip_trunk_provider }}-trunk`, // Will be replaced by Ansible template
       context: 'outbound-campaign',
       exten: normalizedPhoneNumber, // Use normalized number
       priority: 1,

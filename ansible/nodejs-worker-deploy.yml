@@ -38,6 +38,15 @@
         mode: '0644'
       when: worker_package_stat.stat.exists
 
+    - name: Deploy index.js from template (override package version)
+      template:
+        src: templates/asterisk-worker-index.js.j2
+        dest: "{{ nodejs_worker_dir }}/index.js"
+        owner: "{{ nodejs_worker_user }}"
+        group: "{{ nodejs_worker_user }}"
+        mode: '0644'
+      notify: restart asterisk-worker
+
     - name: Verify Node.js installation
       command: /usr/bin/node --version
       register: node_version
@@ -136,3 +145,9 @@
     - name: reload systemd
       systemd:
         daemon_reload: yes
+    
+    - name: restart asterisk-worker
+      systemd:
+        name: "{{ nodejs_worker_service }}"
+        state: restarted
+        enabled: yes

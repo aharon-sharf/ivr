@@ -1,0 +1,481 @@
+const express = require('express');
+const AsteriskManager = require('asterisk-manager');
+const redis = require('redis');
+const { Pool } = require('pg');
+const AWS = require('aws-sdk');
+
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Configuration
+const CONFIG = {
+  asterisk: {
+    host: 'localhost',
+    port: 5038,
+    username: 'admin',
+    password: process.env.AMI_PASSWORD || 'asterisk_ami_secure_2023'
+  },
+  redis: {
+    host: 'localhost',
+    port: 6379,
+    password: process.env.REDIS_PASSWORD || 'redis_secure_password_2023'
+  },
+  postgres: {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'campaign_db',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres'
+  },
+  sip: {
+    trunk: '{{ sip_trunk_provider }}-trunk'  // Use Ansible variable
+  },
+  server: {
+    port: process.env.PORT || {{ nodejs_worker_port }}
+  }
+};
+
+// Initialize connections
+let ami = null;
+let redisClient = null;
+let pgPool = null;
+
+// Initialize Asterisk Manager Interface
+function initAMI() {
+  ami = new AsteriskManager(
+    CONFIG.asterisk.port,
+    CONFIG.asterisk.host,
+    CONFIG.asterisk.username,
+    CONFIG.asterisk.password,
+    true
+  );
+
+  ami.keepConnected();
+
+  ami.on('connect', () => {
+    console.log('Connected to Asterisk Manager Interface');
+  });
+
+  ami.on('error', (err) => {
+    console.error('AMI Error:', err);
+  });
+
+  ami.on('disconnect', () => {
+    console.log('Disconnected from AMI');
+  });
+
+  // Listen for events
+  ami.on('managerevent', (evt) => {
+    handleAsteriskEvent(evt);
+  });
+}
+
+// Initialize Redis connection
+async function initRedis() {
+  redisClient = redis.createClient({
+    host: CONFIG.redis.host,
+    port: CONFIG.redis.port,
+    password: CONFIG.redis.password
+  });
+
+  redisClient.on('error', (err) => {
+    console.error('Redis Error:', err);
+  });
+
+  redisClient.on('connect', () => {
+    console.log('Connected to Redis');
+  });
+
+  await redisClient.connect();
+}
+
+// Initialize PostgreSQL connection
+function initPostgreSQL() {
+  pgPool = new Pool(CONFIG.postgres);
+  
+  pgPool.on('error', (err) => {
+    console.error('PostgreSQL Error:', err);
+  });
+
+  console.log('PostgreSQL pool initialized');
+}
+
+// Handle Asterisk events
+function handleAsteriskEvent(event) {
+  console.log('Asterisk Event:', event.event, event);
+  
+  // Store event in Redis for processing
+  if (redisClient) {
+    const eventData = {
+      timestamp: new Date().toISOString(),
+      event: event.event,
+      data: event
+    };
+    
+    redisClient.lpush('asterisk_events', JSON.stringify(eventData))
+      .catch(err => console.error('Redis push error:', err));
+  }
+}
+
+// Normalize phone number (remove non-digits, ensure proper format)
+function normalizePhoneNumber(phone) {
+  if (!phone) return null;
+  
+  // Remove all non-digit characters
+  let normalized = phone.replace(/\D/g, '');
+  
+  // Handle Israeli numbers
+  if (normalized.startsWith('972')) {
+    // Already in international format
+    return '+' + normalized;
+  } else if (normalized.startsWith('0')) {
+    // Local Israeli format (0XX-XXXXXXX) -> +972XX-XXXXXXX
+    return '+972' + normalized.substring(1);
+  } else if (normalized.length === 9) {
+    // 9-digit Israeli mobile (5X-XXXXXXX) -> +9725X-XXXXXXX
+    return '+972' + normalized;
+  }
+  
+  // For other international numbers, add + if not present
+  if (!normalized.startsWith('+')) {
+    normalized = '+' + normalized;
+  }
+  
+  return normalized;
+}
+
+// API Routes
+
+// Health check
+app.get('/health', (req, res) => {
+  const status = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      ami: ami && ami.connected ? 'connected' : 'disconnected',
+      redis: redisClient && redisClient.isOpen ? 'connected' : 'disconnected',
+      postgres: pgPool ? 'initialized' : 'not initialized'
+    }
+  };
+  
+  res.json(status);
+});
+
+// Originate a call
+app.post('/originate-call', async (req, res) => {
+  try {
+    const { phoneNumber, campaignId, contactId, metadata } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    if (!ami || !ami.connected) {
+      return res.status(503).json({ error: 'AMI not connected' });
+    }
+
+    // Normalize phone number
+    const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhoneNumber) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    console.log(`Originating call to ${normalizedPhoneNumber} (original: ${phoneNumber})`);
+
+    const action = {
+      action: 'Originate',
+      channel: `PJSIP/${normalizedPhoneNumber}@${CONFIG.sip.trunk}`, // Use config variable
+      context: 'outbound-campaign',
+      exten: normalizedPhoneNumber, // Use normalized number
+      priority: 1,
+      timeout: 30000, // 30 seconds
+      callerid: (metadata && metadata.callerIdNumber) ? metadata.callerIdNumber : 'Campaign',
+      variable: {
+        CAMPAIGN_ID: String(campaignId || ''),
+        CONTACT_ID: String(contactId || ''),
+        ORIGINAL_PHONE: String(phoneNumber || ''),
+        AUDIO_FILE: (metadata && metadata.audioFile) ? metadata.audioFile : 'campaign-message',
+        CAMPAIGN_CALLER_ID: (metadata && metadata.callerIdNumber) ? metadata.callerIdNumber : 'Campaign'
+      }
+    };
+
+    ami.action(action, (err, result) => {
+      if (err) {
+        console.error('Originate error:', err);
+        return res.status(500).json({ error: 'Failed to originate call', details: err.message });
+      }
+      
+      console.log('Originate result:', result);
+      res.json({ 
+        success: true, 
+        result: result,
+        normalizedPhone: normalizedPhoneNumber,
+        originalPhone: phoneNumber
+      });
+    });
+
+  } catch (error) {
+    console.error('Originate call error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
+// Handle call started event
+app.post('/call-started', async (req, res) => {
+  try {
+    const { call_id, phone, campaign_id } = req.body;
+    
+    console.log(`Call started: ${call_id}, Phone: ${phone}, Campaign: ${campaign_id}`);
+    
+    // Store call start in Redis
+    if (redisClient) {
+      const callData = {
+        call_id,
+        phone,
+        campaign_id,
+        status: 'started',
+        timestamp: new Date().toISOString()
+      };
+      
+      await redisClient.hset(`call:${call_id}`, callData);
+      await redisClient.expire(`call:${call_id}`, 3600); // Expire after 1 hour
+    }
+    
+    // Update database if needed
+    if (pgPool) {
+      try {
+        await pgPool.query(
+          'INSERT INTO call_records (call_id, phone_number, campaign_id, status, started_at) VALUES ($1, $2, $3, $4, NOW()) ON CONFLICT (call_id) DO UPDATE SET status = $4, started_at = NOW()',
+          [call_id, phone, campaign_id, 'started']
+        );
+      } catch (dbErr) {
+        console.error('Database error:', dbErr);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Call started error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Handle DTMF action
+app.post('/dtmf-action', async (req, res) => {
+  try {
+    const { call_id, dtmf, action, phone } = req.body;
+    
+    console.log(`DTMF Action: ${call_id}, DTMF: ${dtmf}, Action: ${action}`);
+    
+    // Store DTMF action in Redis
+    if (redisClient) {
+      const dtmfData = {
+        call_id,
+        dtmf,
+        action,
+        phone,
+        timestamp: new Date().toISOString()
+      };
+      
+      await redisClient.lpush(`dtmf:${call_id}`, JSON.stringify(dtmfData));
+      await redisClient.expire(`dtmf:${call_id}`, 3600);
+      
+      // Update call status
+      await redisClient.hset(`call:${call_id}`, 'last_dtmf', dtmf, 'last_action', action);
+    }
+    
+    // Handle specific actions
+    if (action === 'optout' && phone) {
+      // Add to blacklist
+      if (pgPool) {
+        try {
+          await pgPool.query(
+            'INSERT INTO blacklist_entries (phone_number, reason, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (phone_number) DO NOTHING',
+            [phone, 'User opted out via DTMF']
+          );
+          console.log(`Added ${phone} to blacklist`);
+        } catch (dbErr) {
+          console.error('Blacklist database error:', dbErr);
+        }
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('DTMF action error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Handle call timeout
+app.post('/call-timeout', async (req, res) => {
+  try {
+    const { call_id } = req.body;
+    
+    console.log(`Call timeout: ${call_id}`);
+    
+    if (redisClient) {
+      await redisClient.hset(`call:${call_id}`, 'status', 'timeout', 'ended_at', new Date().toISOString());
+    }
+    
+    if (pgPool) {
+      try {
+        await pgPool.query(
+          'UPDATE call_records SET status = $1, ended_at = NOW() WHERE call_id = $2',
+          ['timeout', call_id]
+        );
+      } catch (dbErr) {
+        console.error('Database error:', dbErr);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Call timeout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Handle call failed
+app.post('/call-failed', async (req, res) => {
+  try {
+    const { call_id, status } = req.body;
+    
+    console.log(`Call failed: ${call_id}, Status: ${status}`);
+    
+    if (redisClient) {
+      await redisClient.hset(`call:${call_id}`, 'status', 'failed', 'dial_status', status, 'ended_at', new Date().toISOString());
+    }
+    
+    if (pgPool) {
+      try {
+        await pgPool.query(
+          'UPDATE call_records SET status = $1, dial_status = $2, ended_at = NOW() WHERE call_id = $3',
+          ['failed', status, call_id]
+        );
+      } catch (dbErr) {
+        console.error('Database error:', dbErr);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Call failed error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Handle call ended
+app.post('/call-ended', async (req, res) => {
+  try {
+    const { call_id, duration, status } = req.body;
+    
+    console.log(`Call ended: ${call_id}, Duration: ${duration}, Status: ${status}`);
+    
+    if (redisClient) {
+      await redisClient.hset(`call:${call_id}`, 'status', 'ended', 'duration', duration, 'ended_at', new Date().toISOString());
+    }
+    
+    if (pgPool) {
+      try {
+        await pgPool.query(
+          'UPDATE call_records SET status = $1, duration = $2, ended_at = NOW() WHERE call_id = $3',
+          ['completed', parseInt(duration) || 0, call_id]
+        );
+      } catch (dbErr) {
+        console.error('Database error:', dbErr);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Call ended error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get call status
+app.get('/call-status/:call_id', async (req, res) => {
+  try {
+    const { call_id } = req.params;
+    
+    if (!redisClient) {
+      return res.status(503).json({ error: 'Redis not available' });
+    }
+    
+    const callData = await redisClient.hgetall(`call:${call_id}`);
+    
+    if (Object.keys(callData).length === 0) {
+      return res.status(404).json({ error: 'Call not found' });
+    }
+    
+    res.json({ call_id, data: callData });
+  } catch (error) {
+    console.error('Get call status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Initialize all services
+async function initialize() {
+  try {
+    console.log('Initializing Asterisk Worker...');
+    
+    // Initialize services
+    initAMI();
+    await initRedis();
+    initPostgreSQL();
+    
+    // Start HTTP server
+    app.listen(CONFIG.server.port, () => {
+      console.log(`Asterisk Worker listening on port ${CONFIG.server.port}`);
+      console.log(`SIP Trunk: ${CONFIG.sip.trunk}`);
+      console.log('Services initialized successfully');
+    });
+    
+  } catch (error) {
+    console.error('Initialization error:', error);
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  
+  if (ami) {
+    ami.disconnect();
+  }
+  
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  
+  if (pgPool) {
+    await pgPool.end();
+  }
+  
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  
+  if (ami) {
+    ami.disconnect();
+  }
+  
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  
+  if (pgPool) {
+    await pgPool.end();
+  }
+  
+  process.exit(0);
+});
+
+// Start the application
+initialize();

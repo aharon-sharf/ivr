@@ -25,7 +25,7 @@ The Asterisk Worker acts as a bridge between AWS Lambda functions and the Asteri
                                                   ▼
                                          ┌──────────────────┐
                                          │ SIP Trunk        │
-                                         │ (019/Partner)    │
+                                         │ (Twilio)         │
                                          └──────────────────┘
 ```
 

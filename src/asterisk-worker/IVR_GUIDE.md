@@ -299,10 +299,10 @@ Update if worker runs on different host/port.
 ### SIP Trunk
 
 ```asterisk
-Dial(PJSIP/${EXTEN}@019-trunk,30,g)
+Dial(PJSIP/${EXTEN}@twilio-trunk,30,g)
 ```
 
-Replace `019-trunk` with your configured trunk name.
+Replace `twilio-trunk` with your configured trunk name.
 
 ### Caller ID
 
@@ -350,7 +350,7 @@ exten => s,1,NoOp(Submenu 2)
 sudo asterisk -rvvv
 
 # Originate test call
-originate PJSIP/+972501234567@019-trunk extension test@outbound-campaign
+originate PJSIP/+972501234567@twilio-trunk extension test@outbound-campaign
 
 # Watch call progress
 core show channels verbose
@@ -360,7 +360,7 @@ core show channels verbose
 
 ```bash
 # While call is active, send DTMF
-channel originate PJSIP/+972501234567@019-trunk extension s@ivr-main
+channel originate PJSIP/+972501234567@twilio-trunk extension s@ivr-main
 # Then send DTMF
 core send dtmf <channel-id> 1
 ```
@@ -441,7 +441,7 @@ sudo tail -f /var/log/asterisk/messages
 
 1. Check DTMF mode in PJSIP:
    ```ini
-   [019-trunk]
+   [twilio-trunk]
    dtmf_mode=rfc4733  ; or inband, info
    ```
 
@@ -498,7 +498,7 @@ sudo tail -f /var/log/asterisk/messages
 
 4. Test dial manually:
    ```bash
-   sudo asterisk -rx "originate PJSIP/+972501234567@019-trunk extension test@outbound-campaign"
+   sudo asterisk -rx "originate PJSIP/+972501234567@twilio-trunk extension test@outbound-campaign"
    ```
 
 ## Best Practices

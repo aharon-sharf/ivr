@@ -47,7 +47,7 @@ ansible-playbook -i inventory/hosts.ini site.yml
 
 This will:
 - Install Asterisk from source
-- Configure SIP trunk for Israeli provider (019/Partner)
+- Configure SIP trunk for Twilio provider
 - Set up AMI (Asterisk Manager Interface)
 - Set up ARI (Asterisk REST Interface)
 - Configure IVR dialplan
@@ -80,8 +80,8 @@ ansible-playbook -i inventory/hosts.ini nodejs-worker-deploy.yml
 Edit `group_vars/asterisk.yml` to configure your Israeli SIP trunk provider:
 
 ```yaml
-sip_trunk_provider: "019"  # or "Partner"
-sip_trunk_host: "sip.019.co.il"
+sip_trunk_provider: "twilio"
+sip_trunk_host: "aharon-sharf-ivr.pstn.twilio.com"
 sip_trunk_username: "{{ lookup('env', 'SIP_TRUNK_USERNAME') }}"
 sip_trunk_password: "{{ lookup('env', 'SIP_TRUNK_PASSWORD') }}"
 ```
