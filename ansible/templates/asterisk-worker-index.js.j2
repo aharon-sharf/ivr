@@ -192,8 +192,8 @@ app.post('/dial', async (req, res) => {
     
     const originateParams = {
       Channel: `PJSIP/${normalizedPhone}@${CONFIG.sip.trunk}`,
-      Context: 'outbound-campaign',
-      Exten: dialExtension,
+      Context: 'ivr-main',
+      Exten: 's',
       Priority: 1,
       CallerID: twilioCallerID,
       Timeout: 30000,
