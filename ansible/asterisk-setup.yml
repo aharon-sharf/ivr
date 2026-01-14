@@ -209,6 +209,23 @@
         mode: '0644'
       notify: reload systemd
 
+    - name: Create tmpfiles.d configuration for Asterisk runtime directory
+      copy:
+        dest: /etc/tmpfiles.d/asterisk.conf
+        content: |
+          d /var/run/asterisk 0755 asterisk asterisk -
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create Asterisk runtime directory
+      file:
+        path: /var/run/asterisk
+        state: directory
+        owner: asterisk
+        group: asterisk
+        mode: '0755'
+
     - name: Enable and start Asterisk service
       systemd:
         name: asterisk
