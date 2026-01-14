@@ -67,3 +67,6 @@ redis_save_intervals:
   - "60 10000" # Save after 60 seconds if at least 10000 keys changed
 redis_appendonly: "yes"
 redis_appendfsync: "everysec"
+
+# Twilio Caller ID (must be a verified number in your Twilio account)
+twilio_caller_id: "{{ lookup('env', 'TWILIO_CALLER_ID') | default('+12345678900', true) }}"

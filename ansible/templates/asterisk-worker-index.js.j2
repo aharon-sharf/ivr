@@ -187,12 +187,15 @@ app.post('/dial', async (req, res) => {
       return res.status(503).json({ error: 'AMI not connected' });
     }
     
+    // Use a valid Twilio number as CallerID (you need to configure this)
+    const twilioCallerID = process.env.TWILIO_CALLER_ID || '+12345678900';
+    
     const originateParams = {
       Channel: `PJSIP/${normalizedPhone}@${CONFIG.sip.trunk}`,
       Context: 'outbound-campaign',
       Exten: dialExtension,
       Priority: 1,
-      CallerID: dialExtension,
+      CallerID: twilioCallerID,
       Timeout: 30000,
       Async: 'true'
     };
