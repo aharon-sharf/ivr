@@ -188,7 +188,7 @@ app.post('/dial', async (req, res) => {
     }
     
     const originateParams = {
-      Channel: `PJSIP/${normalizedPhone}@${CONFIG.sip.trunk}`,
+      Channel: `PJSIP/${dialExtension}@${CONFIG.sip.trunk}`,
       Context: 'outbound-campaign',
       Exten: dialExtension,
       Priority: 1,
