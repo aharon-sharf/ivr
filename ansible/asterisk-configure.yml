@@ -38,7 +38,6 @@
           allow=g729
           direct_media=no
           trust_id_inbound=yes
-          from_user={{ sip_trunk_username }}
           outbound_auth={{ sip_trunk_provider }}-auth
           aors={{ sip_trunk_provider }}-aor
 
