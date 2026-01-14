@@ -198,40 +198,28 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Send AMI originate command
+    // Send AMI originate command using action method with correct format
     try {
       console.log('About to send AMI action...');
-      console.log('AMI object keys:', Object.keys(ami));
       
-      // Build raw AMI command
-      const amiCommand = [
-        'Action: Originate',
-        `Channel: ${originateParams.Channel}`,
-        `Context: ${originateParams.Context}`,
-        `Exten: ${originateParams.Exten}`,
-        `Priority: ${originateParams.Priority}`,
-        `CallerID: ${originateParams.CallerID}`,
-        `Timeout: ${originateParams.Timeout}`,
-        '',
-        ''
-      ].join('\r\n');
+      // Use the action method with individual parameters (not object)
+      ami.action({
+        'action': 'originate',
+        'channel': originateParams.Channel,
+        'context': originateParams.Context,
+        'exten': originateParams.Exten,
+        'priority': originateParams.Priority,
+        'callerid': originateParams.CallerID,
+        'timeout': originateParams.Timeout
+      }, (err, res) => {
+        if (err) {
+          console.error('AMI action error:', err);
+        } else {
+          console.log('AMI action response:', res);
+        }
+      });
       
-      console.log('Raw AMI command:', amiCommand.replace(/\r\n/g, '\\r\\n'));
-      
-      // Try different methods to send
-      if (typeof ami.send === 'function') {
-        console.log('Using ami.send method');
-        ami.send(amiCommand);
-      } else if (ami.socket && ami.socket.write) {
-        console.log('Using ami.socket.write');
-        ami.socket.write(amiCommand);
-      } else if (ami.connection && ami.connection.write) {
-        console.log('Using ami.connection.write');
-        ami.connection.write(amiCommand);
-      } else {
-        console.error('No available method to send AMI command');
-        console.log('AMI properties:', Object.getOwnPropertyNames(ami));
-      }
+      console.log('AMI action sent');
       
       // Return success immediately
       res.json({ 
