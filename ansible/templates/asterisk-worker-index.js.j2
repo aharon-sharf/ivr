@@ -198,28 +198,33 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Send AMI originate command using raw format
+    // Send AMI originate command using raw socket write
     try {
       console.log('About to send AMI action...');
       console.log('AMI connection status:', ami.connected);
       
-      // Try raw AMI command format
-      const amiCommand = `Action: Originate\r\nChannel: ${originateParams.Channel}\r\nContext: ${originateParams.Context}\r\nExten: ${originateParams.Exten}\r\nPriority: ${originateParams.Priority}\r\nCallerID: ${originateParams.CallerID}\r\nTimeout: ${originateParams.Timeout}\r\n\r\n`;
+      // Build raw AMI command
+      const amiCommand = [
+        'Action: Originate',
+        `Channel: ${originateParams.Channel}`,
+        `Context: ${originateParams.Context}`,
+        `Exten: ${originateParams.Exten}`,
+        `Priority: ${originateParams.Priority}`,
+        `CallerID: ${originateParams.CallerID}`,
+        `Timeout: ${originateParams.Timeout}`,
+        '',
+        ''
+      ].join('\r\n');
       
-      console.log('Raw AMI command:', amiCommand);
+      console.log('Raw AMI command:', amiCommand.replace(/\r\n/g, '\\r\\n'));
       
-      // Send using the library's action method
-      const actionResult = ami.action('Originate', originateParams, (err, result) => {
-        console.log('AMI Originate callback received');
-        if (err) {
-          console.error('AMI Originate callback error:', err);
-        } else {
-          console.log('AMI Originate callback result:', result);
-        }
-      });
-      
-      console.log('AMI action method returned:', actionResult);
-      console.log('AMI Originate command sent successfully');
+      // Send raw command via socket
+      if (ami.connection && ami.connection.write) {
+        ami.connection.write(amiCommand);
+        console.log('Raw AMI command written to socket');
+      } else {
+        console.error('AMI connection socket not available');
+      }
       
       // Return success immediately
       res.json({ 
