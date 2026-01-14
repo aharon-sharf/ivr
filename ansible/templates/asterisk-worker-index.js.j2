@@ -192,8 +192,9 @@ app.post('/dial', async (req, res) => {
       Context: 'outbound-campaign',
       Exten: dialExtension,
       Priority: 1,
-      CallerID: `Campaign <${normalizedPhone}>`,
-      Timeout: 30000
+      CallerID: dialExtension,
+      Timeout: 30000,
+      Async: 'true'
     };
     
     console.log('Originating call with params:', originateParams);
@@ -210,7 +211,8 @@ app.post('/dial', async (req, res) => {
         'exten': originateParams.Exten,
         'priority': originateParams.Priority,
         'callerid': originateParams.CallerID,
-        'timeout': originateParams.Timeout
+        'timeout': originateParams.Timeout,
+        'async': originateParams.Async
       }, (err, res) => {
         if (err) {
           console.error('AMI action error:', err);
