@@ -198,10 +198,10 @@ app.post('/dial', async (req, res) => {
     
     console.log('Originating call with params:', originateParams);
     
-    // Send AMI originate command using raw socket write
+    // Send AMI originate command
     try {
       console.log('About to send AMI action...');
-      console.log('AMI connection status:', ami.connected);
+      console.log('AMI object keys:', Object.keys(ami));
       
       // Build raw AMI command
       const amiCommand = [
@@ -218,12 +218,19 @@ app.post('/dial', async (req, res) => {
       
       console.log('Raw AMI command:', amiCommand.replace(/\r\n/g, '\\r\\n'));
       
-      // Send raw command via socket
-      if (ami.connection && ami.connection.write) {
+      // Try different methods to send
+      if (typeof ami.send === 'function') {
+        console.log('Using ami.send method');
+        ami.send(amiCommand);
+      } else if (ami.socket && ami.socket.write) {
+        console.log('Using ami.socket.write');
+        ami.socket.write(amiCommand);
+      } else if (ami.connection && ami.connection.write) {
+        console.log('Using ami.connection.write');
         ami.connection.write(amiCommand);
-        console.log('Raw AMI command written to socket');
       } else {
-        console.error('AMI connection socket not available');
+        console.error('No available method to send AMI command');
+        console.log('AMI properties:', Object.getOwnPropertyNames(ami));
       }
       
       // Return success immediately
