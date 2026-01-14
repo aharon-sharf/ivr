@@ -215,7 +215,14 @@ app.post('/dial', async (req, res) => {
         'priority': originateParams.Priority,
         'callerid': originateParams.CallerID,
         'timeout': originateParams.Timeout,
-        'async': originateParams.Async
+        'async': originateParams.Async,
+        'variable': [
+          `CALL_ID=${callId}`,
+          `CAMPAIGN_ID=${campaignId}`,
+          `CONTACT_ID=${contactId}`,
+          `AUDIO_FILE=${audioFileUrl || ''}`,
+          `AUDIO_FILE_URL=${audioFileUrl || ''}`
+        ]
       }, (err, res) => {
         if (err) {
           console.error('AMI action error:', err);
