@@ -213,13 +213,28 @@ app.get('/audio/:callId', (req, res) => {
 // Stream audio for call (redirect to presigned URL)
 app.get('/audio/:callId/stream', (req, res) => {
   const { callId } = req.params;
-  const audioUrl = callAudioUrls.get(callId);
+  let audioUrl = callAudioUrls.get(callId);
+  
+  // If not found by Asterisk call ID, try to find by Lambda call ID
+  if (!audioUrl) {
+    for (const [lambdaCallId, url] of callAudioUrls.entries()) {
+      // Check if this might be a Lambda call ID
+      if (lambdaCallId.includes('call-') || lambdaCallId.length > 20) {
+        audioUrl = url;
+        // Store mapping for future use
+        callAudioUrls.set(callId, url);
+        break;
+      }
+    }
+  }
   
   if (!audioUrl) {
+    console.log(`Audio not found for call ID: ${callId}`);
+    console.log(`Available call IDs:`, Array.from(callAudioUrls.keys()));
     return res.status(404).send('Audio not found');
   }
   
-  // Redirect to presigned URL
+  console.log(`Redirecting call ${callId} to audio URL`);
   res.redirect(302, audioUrl);
 });
 
@@ -289,7 +304,8 @@ app.post('/dial', async (req, res) => {
           `CAMPAIGN_ID=${campaignId}`,
           `CONTACT_ID=${contactId}`,
           `AUDIO_FILE=${callId}`,
-          `AUDIO_FILE_URL=${callId}`
+          `AUDIO_FILE_URL=${callId}`,
+          `LAMBDA_CALL_ID=${callId}`
         ]
       }, (err, res) => {
         if (err) {
