@@ -11,6 +11,8 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -21,12 +23,14 @@ import {
 } from '@mui/icons-material';
 import { useDropzone } from 'react-dropzone';
 import { audioApi } from '../api/audio';
+import { convertToWav } from '../utils/audioConverter';
 
 interface AudioUploadProps {
   onAudioReady: (file: File, audioUrl: string) => void;
   onError?: (error: string) => void;
   maxSizeMB?: number;
   acceptedFormats?: string[];
+  convertToWavFormat?: boolean; // New prop to enable WAV conversion
 }
 
 export const AudioUpload = ({
@@ -34,6 +38,7 @@ export const AudioUpload = ({
   onError,
   maxSizeMB = 10,
   acceptedFormats = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm'],
+  convertToWavFormat = false,
 }: AudioUploadProps) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -42,6 +47,8 @@ export const AudioUpload = ({
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [enableWavConversion, setEnableWavConversion] = useState(convertToWavFormat);
+  const [isConverting, setIsConverting] = useState(false);
 
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
@@ -79,37 +86,61 @@ export const AudioUpload = ({
     setUploadProgress(0);
 
     try {
+      let fileToUpload = file;
+      let fileName = file.name;
+
+      // Convert to WAV if enabled and file is not already WAV
+      if (enableWavConversion && file.type !== 'audio/wav') {
+        setIsConverting(true);
+        setUploadProgress(5);
+        
+        console.log('Converting audio file to WAV format...');
+        const wavBlob = await convertToWav(file, {
+          sampleRate: 8000,  // 8kHz for telephony
+          numChannels: 1,    // Mono
+          bitDepth: 16       // 16-bit PCM
+        });
+        
+        // Create a new File object from the WAV blob
+        fileName = file.name.replace(/\.[^/.]+$/, '.wav');
+        fileToUpload = new File([wavBlob], fileName, { type: 'audio/wav' });
+        
+        setIsConverting(false);
+        console.log('Audio conversion completed. Original size:', file.size, 'WAV size:', wavBlob.size);
+      }
+
       // Step 1: Get presigned URL from backend
       setUploadProgress(10);
-      console.log('Getting presigned URL for:', file.name, file.type);
-      const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(file.name, file.type);
+      console.log('Getting presigned URL for:', fileName, fileToUpload.type);
+      const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, fileToUpload.type);
       console.log('Got presigned URL:', uploadUrl);
       console.log('Expected S3 URL:', s3AudioUrl);
       
       // Step 2: Upload file to S3
       setUploadProgress(30);
-      console.log('Uploading file to S3, size:', file.size, 'type:', file.type);
-      await audioApi.uploadToS3(uploadUrl, file);
+      console.log('Uploading file to S3, size:', fileToUpload.size, 'type:', fileToUpload.type);
+      await audioApi.uploadToS3(uploadUrl, fileToUpload);
       console.log('S3 upload completed successfully');
       
       setUploadProgress(100);
       
-      // Create local URL for preview playback
+      // Create local URL for preview playback (use original file for better browser compatibility)
       const localPreviewUrl = URL.createObjectURL(file);
       
-      setUploadedFile(file);
+      setUploadedFile(fileToUpload);
       setAudioUrl(localPreviewUrl);
       setS3Url(s3AudioUrl);
       setIsUploading(false);
       
       // Return the S3 URL (not the blob URL) to the parent
-      onAudioReady(file, s3AudioUrl);
+      onAudioReady(fileToUpload, s3AudioUrl);
     } catch (err) {
       console.error('Error uploading audio file:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload audio file';
       setError(errorMessage);
       onError?.(errorMessage);
       setIsUploading(false);
+      setIsConverting(false);
       setUploadProgress(0);
     }
   };
@@ -170,6 +201,22 @@ export const AudioUpload = ({
         </Alert>
       )}
 
+      <Box sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={enableWavConversion}
+              onChange={(e) => setEnableWavConversion(e.target.checked)}
+              disabled={isUploading}
+            />
+          }
+          label="Convert to WAV format (recommended for telephony)"
+        />
+        <Typography variant="caption" display="block" color="text.secondary">
+          WAV format with 8kHz sample rate is optimized for phone calls and compatible with Asterisk
+        </Typography>
+      </Box>
+
       {!uploadedFile && (
         <Box
           {...getRootProps()}
@@ -204,10 +251,10 @@ export const AudioUpload = ({
         </Box>
       )}
 
-      {isUploading && (
+      {(isUploading || isConverting) && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Uploading...
+            {isConverting ? 'Converting to WAV format...' : 'Uploading...'}
           </Typography>
           <LinearProgress variant="determinate" value={uploadProgress} />
         </Box>

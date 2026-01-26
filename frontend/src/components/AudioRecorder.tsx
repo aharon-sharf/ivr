@@ -17,6 +17,7 @@ import {
   Delete,
 } from '@mui/icons-material';
 import { audioApi } from '../api/audio';
+import { WavRecorder } from '../utils/audioConverter';
 
 interface AudioRecorderProps {
   onAudioReady: (audioBlob: Blob, audioUrl: string) => void;
@@ -40,8 +41,7 @@ export const AudioRecorder = ({
   const [error, setError] = useState<string | null>(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const wavRecorderRef = useRef<WavRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -79,71 +79,17 @@ export const AudioRecorder = ({
   const startRecording = async () => {
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
+      
+      // Create WAV recorder with telephony-optimized settings
+      const wavRecorder = new WavRecorder({
+        sampleRate: 8000,  // 8kHz for telephony
+        numChannels: 1,    // Mono
+        bitDepth: 16       // 16-bit PCM
       });
-
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const localUrl = URL.createObjectURL(blob);
-        setAudioBlob(blob);
-        setAudioUrl(localUrl);
-
-        // Stop all tracks
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-        }
-
-        // Upload to S3
-        setIsUploading(true);
-        try {
-          const fileName = `recording-${Date.now()}.webm`;
-          console.log('=== AUDIO UPLOAD DEBUG ===');
-          console.log('1. Getting presigned URL for:', fileName, blob.type);
-          console.log('   Blob size:', blob.size, 'bytes');
-          
-          const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, blob.type);
-          console.log('2. Got presigned URL:', uploadUrl);
-          console.log('3. Expected S3 URL:', s3AudioUrl);
-          
-          console.log('4. Starting S3 upload...');
-          await audioApi.uploadToS3(uploadUrl, blob);
-          console.log('5. S3 upload completed successfully!');
-          
-          setS3Url(s3AudioUrl);
-          setIsUploading(false);
-          console.log('6. Upload process completed, calling onAudioReady');
-          // Return the S3 URL (not the blob URL) to the parent
-          onAudioReady(blob, s3AudioUrl);
-        } catch (err) {
-          console.error('=== UPLOAD ERROR ===');
-          console.error('Error uploading recording to S3:', err);
-          console.error('Error type:', typeof err);
-          console.error('Error constructor:', err?.constructor?.name);
-          if (err instanceof Error) {
-            console.error('Error message:', err.message);
-            console.error('Error stack:', err.stack);
-          }
-          const errorMessage = err instanceof Error ? err.message : 'Failed to upload recording';
-          setError(errorMessage);
-          onError?.(errorMessage);
-          setIsUploading(false);
-        }
-      };
-
-      mediaRecorder.start();
+      
+      wavRecorderRef.current = wavRecorder;
+      
+      await wavRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -164,26 +110,73 @@ export const AudioRecorder = ({
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsPaused(false);
+  const stopRecording = async () => {
+    if (wavRecorderRef.current && isRecording) {
+      try {
+        setIsRecording(false);
+        setIsPaused(false);
 
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+
+        // Get WAV blob from recorder
+        const wavBlob = await wavRecorderRef.current.stop();
+        const localUrl = URL.createObjectURL(wavBlob);
+        setAudioBlob(wavBlob);
+        setAudioUrl(localUrl);
+
+        // Upload to S3
+        setIsUploading(true);
+        try {
+          const fileName = `recording-${Date.now()}.wav`;
+          console.log('=== AUDIO UPLOAD DEBUG ===');
+          console.log('1. Getting presigned URL for:', fileName, wavBlob.type);
+          console.log('   WAV Blob size:', wavBlob.size, 'bytes');
+          
+          const { uploadUrl, audioUrl: s3AudioUrl } = await audioApi.getUploadUrl(fileName, wavBlob.type);
+          console.log('2. Got presigned URL:', uploadUrl);
+          console.log('3. Expected S3 URL:', s3AudioUrl);
+          
+          console.log('4. Starting S3 upload...');
+          await audioApi.uploadToS3(uploadUrl, wavBlob);
+          console.log('5. S3 upload completed successfully!');
+          
+          setS3Url(s3AudioUrl);
+          setIsUploading(false);
+          console.log('6. Upload process completed, calling onAudioReady');
+          // Return the S3 URL (not the blob URL) to the parent
+          onAudioReady(wavBlob, s3AudioUrl);
+        } catch (err) {
+          console.error('=== UPLOAD ERROR ===');
+          console.error('Error uploading recording to S3:', err);
+          console.error('Error type:', typeof err);
+          console.error('Error constructor:', err?.constructor?.name);
+          if (err instanceof Error) {
+            console.error('Error message:', err.message);
+            console.error('Error stack:', err.stack);
+          }
+          const errorMessage = err instanceof Error ? err.message : 'Failed to upload recording';
+          setError(errorMessage);
+          onError?.(errorMessage);
+          setIsUploading(false);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to stop recording';
+        setError(errorMessage);
+        onError?.(errorMessage);
       }
     }
   };
 
   const pauseRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (wavRecorderRef.current && isRecording) {
       if (isPaused) {
-        mediaRecorderRef.current.resume();
+        wavRecorderRef.current.resume();
         setIsPaused(false);
       } else {
-        mediaRecorderRef.current.pause();
+        wavRecorderRef.current.pause();
         setIsPaused(true);
       }
     }
