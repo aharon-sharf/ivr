@@ -26,7 +26,7 @@ export async function convertToWav(
   } = options;
 
   // Create audio context with desired sample rate
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+  const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({
     sampleRate
   });
 

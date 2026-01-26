@@ -44,20 +44,17 @@ export const AudioRecorder = ({
   const wavRecorderRef = useRef<WavRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     // Check for microphone permission on mount
     checkMicrophonePermission();
 
+    // Return cleanup function
     return () => {
-      // Cleanup on unmount
       stopRecording();
+      // Clean up audio URL if it exists
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
