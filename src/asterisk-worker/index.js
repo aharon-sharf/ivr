@@ -20,6 +20,7 @@ const AsteriskManager = require('asterisk-manager');
 const ariClient = require('ari-client');
 const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { PollyClient, SynthesizeSpeechCommand } = require('@aws-sdk/client-polly');
 const winston = require('winston');
 const { v4: uuidv4 } = require('uuid');
@@ -63,6 +64,37 @@ const logger = winston.createLogger({
 const snsClient = new SNSClient({ region: AWS_REGION });
 const s3Client = new S3Client({ region: AWS_REGION });
 const pollyClient = new PollyClient({ region: AWS_REGION });
+
+/**
+ * Generate presigned URL for S3 audio file
+ */
+async function generatePresignedUrl(audioFileUrl) {
+  if (!audioFileUrl || !audioFileUrl.includes('s3.') || !audioFileUrl.includes('amazonaws.com')) {
+    // Not an S3 URL, return as-is
+    return audioFileUrl;
+  }
+
+  try {
+    // Extract bucket and key from S3 URL
+    const url = new URL(audioFileUrl);
+    const pathParts = url.pathname.substring(1).split('/');
+    const key = pathParts.join('/');
+    
+    const command = new GetObjectCommand({
+      Bucket: S3_AUDIO_BUCKET,
+      Key: key,
+    });
+
+    // Generate presigned URL valid for 1 hour
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    
+    logger.info(`Generated presigned URL for ${audioFileUrl}`);
+    return presignedUrl;
+  } catch (error) {
+    logger.error(`Failed to generate presigned URL for ${audioFileUrl}:`, error);
+    return audioFileUrl; // Fallback to original URL
+  }
+}
 
 // Express app
 const app = express();
@@ -348,11 +380,14 @@ async function publishCallEvent(event) {
 /**
  * Originate outbound call using AMI
  */
-function originateCall(dialCommand) {
-  return new Promise((resolve, reject) => {
+async function originateCall(dialCommand) {
+  return new Promise(async (resolve, reject) => {
     const { callId, phoneNumber, campaignId, contactId, audioFileUrl, ivrFlow, metadata } = dialCommand;
 
     logger.info(`Originating call ${callId} to ${phoneNumber}`);
+
+    // Generate presigned URL for S3 audio files
+    const presignedAudioUrl = await generatePresignedUrl(audioFileUrl);
 
     // Normalize phone number - remove + and any non-digit characters for Asterisk
     const normalizedPhoneNumber = phoneNumber.replace(/[^\d]/g, '');
@@ -373,7 +408,7 @@ function originateCall(dialCommand) {
       originalPhoneNumber: phoneNumber,
       campaignId,
       contactId: contactId || 'unknown',
-      audioFileUrl: audioFileUrl || 'default-message',
+      audioFileUrl: presignedAudioUrl || 'default-message',
       ivrFlow,
       metadata: metadata || {},
       state: 'originating',
@@ -394,7 +429,7 @@ function originateCall(dialCommand) {
         CAMPAIGN_ID: String(campaignId || ''),
         CONTACT_ID: String(contactId || ''),
         CALL_ID: String(callId || ''),
-        AUDIO_FILE: String(audioFileUrl || 'default-message'),
+        AUDIO_FILE: String(presignedAudioUrl || 'default-message'),
         ORIGINAL_PHONE: String(phoneNumber || '') // Keep original for reference
       },
       async: true

@@ -2,7 +2,8 @@ const express = require('express');
 const AsteriskManager = require('asterisk-manager');
 const redis = require('redis');
 const { Pool } = require('pg');
-const AWS = require('aws-sdk');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
 app.use(express.json());
@@ -35,6 +36,40 @@ const CONFIG = {
     port: process.env.PORT || {{ nodejs_worker_port }}
   }
 };
+
+// AWS S3 Client
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'il-central-1' });
+
+/**
+ * Generate presigned URL for S3 audio file
+ */
+async function generatePresignedUrl(audioFileUrl) {
+  if (!audioFileUrl || !audioFileUrl.includes('s3.') || !audioFileUrl.includes('amazonaws.com')) {
+    // Not an S3 URL, return as-is
+    return audioFileUrl;
+  }
+
+  try {
+    // Extract bucket and key from S3 URL
+    const url = new URL(audioFileUrl);
+    const pathParts = url.pathname.substring(1).split('/');
+    const key = pathParts.join('/');
+    
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_AUDIO_BUCKET,
+      Key: key,
+    });
+
+    // Generate presigned URL valid for 1 hour
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    
+    console.log(`Generated presigned URL for ${audioFileUrl}`);
+    return presignedUrl;
+  } catch (error) {
+    console.error(`Failed to generate presigned URL for ${audioFileUrl}:`, error);
+    return audioFileUrl; // Fallback to original URL
+  }
+}
 
 // Initialize connections
 let ami = null;
@@ -172,6 +207,9 @@ app.post('/dial', async (req, res) => {
     if (!callId || !phoneNumber || !campaignId || !contactId) {
       return res.status(400).json({ error: 'Missing required fields: callId, phoneNumber, campaignId, contactId' });
     }
+
+    // Generate presigned URL for S3 audio files
+    const presignedAudioUrl = await generatePresignedUrl(audioFileUrl);
     
     // Normalize phone number
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
@@ -220,8 +258,8 @@ app.post('/dial', async (req, res) => {
           `CALL_ID=${callId}`,
           `CAMPAIGN_ID=${campaignId}`,
           `CONTACT_ID=${contactId}`,
-          `AUDIO_FILE=${audioFileUrl || ''}`,
-          `AUDIO_FILE_URL=${audioFileUrl || ''}`
+          `AUDIO_FILE=${presignedAudioUrl || ''}`,
+          `AUDIO_FILE_URL=${presignedAudioUrl || ''}`
         ]
       }, (err, res) => {
         if (err) {
