@@ -198,6 +198,34 @@ app.get('/health', (req, res) => {
   res.json(status);
 });
 
+// Get audio URL for call
+app.get('/audio/:callId', (req, res) => {
+  const { callId } = req.params;
+  const audioUrl = callAudioUrls.get(callId);
+  
+  if (!audioUrl) {
+    return res.status(404).json({ error: 'Audio URL not found for call' });
+  }
+  
+  res.json({ audioUrl });
+});
+
+// Stream audio for call (redirect to presigned URL)
+app.get('/audio/:callId/stream', (req, res) => {
+  const { callId } = req.params;
+  const audioUrl = callAudioUrls.get(callId);
+  
+  if (!audioUrl) {
+    return res.status(404).send('Audio not found');
+  }
+  
+  // Redirect to presigned URL
+  res.redirect(302, audioUrl);
+});
+
+// Store presigned URLs for calls
+const callAudioUrls = new Map();
+
 // Dial endpoint - receives dial commands from Lambda
 app.post('/dial', async (req, res) => {
   try {
@@ -209,8 +237,9 @@ app.post('/dial', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: callId, phoneNumber, campaignId, contactId' });
     }
 
-    // Generate presigned URL for S3 audio files
+    // Generate presigned URL for S3 audio files and store it
     const presignedAudioUrl = await generatePresignedUrl(audioFileUrl);
+    callAudioUrls.set(callId, presignedAudioUrl);
     
     // Normalize phone number
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
@@ -259,8 +288,8 @@ app.post('/dial', async (req, res) => {
           `CALL_ID=${callId}`,
           `CAMPAIGN_ID=${campaignId}`,
           `CONTACT_ID=${contactId}`,
-          `AUDIO_FILE=${presignedAudioUrl || ''}`,
-          `AUDIO_FILE_URL=${presignedAudioUrl || ''}`
+          `AUDIO_FILE=${callId}`,
+          `AUDIO_FILE_URL=${callId}`
         ]
       }, (err, res) => {
         if (err) {

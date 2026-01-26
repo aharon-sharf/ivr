@@ -159,7 +159,7 @@
            ; Notify Node.js worker that call started
            same => n,Set(CURL_RESULT=${CURL(${NODEJS_WORKER_URL}/call-started,call_id=${CALL_ID}&phone=${CALLERID(num)}&campaign_id=${CAMPAIGN_ID})})
            ; Play audio message from S3 or local file
-           same => n,Playback(${AUDIO_FILE})
+           same => n,Playback(http://localhost:3000/audio/${CALL_ID}/stream)
            same => n,Goto(ivr-wait-input,s,1)
 
           ; ===== Wait for DTMF input =====
