@@ -6,7 +6,7 @@ project_name: "mass-voice-campaign"
 aws_region: "il-central-1"
 
 # Asterisk version
-asterisk_version: "23.1.0"
+asterisk_version: "23.2.0"
 
 # SIP Trunk Configuration (Twilio Provider)
 sip_trunk_provider: "twilio"

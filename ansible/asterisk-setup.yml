@@ -152,6 +152,14 @@
         home: /var/lib/asterisk
         create_home: no
 
+    - name: Create Asterisk cache directory
+      file:
+        path: /var/cache/asterisk
+        state: directory
+        owner: asterisk
+        group: asterisk
+        mode: '0755'
+
     - name: Set Asterisk file ownership
       file:
         path: "{{ item }}"
@@ -164,6 +172,7 @@
         - /var/log/asterisk
         - /var/spool/asterisk
         - /usr/lib64/asterisk
+        - /var/cache/asterisk
 
     - name: Set Asterisk binary ownership
       file:
