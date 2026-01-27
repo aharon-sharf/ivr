@@ -210,8 +210,8 @@ app.get('/audio/:callId', (req, res) => {
   res.json({ audioUrl });
 });
 
-// Stream audio for call (redirect to presigned URL)
-app.get('/audio/:callId/stream', (req, res) => {
+// Stream audio for call (proxy to presigned URL)
+app.get('/audio/:callId/stream', async (req, res) => {
   const { callId } = req.params;
   let audioUrl = callAudioUrls.get(callId);
   
@@ -234,8 +234,30 @@ app.get('/audio/:callId/stream', (req, res) => {
     return res.status(404).send('Audio not found');
   }
   
-  console.log(`Redirecting call ${callId} to audio URL`);
-  res.redirect(302, audioUrl);
+  try {
+    console.log(`Proxying audio for call ${callId}`);
+    
+    // Fetch audio from S3 and stream it
+    const response = await fetch(audioUrl);
+    
+    if (!response.ok) {
+      throw new Error(`S3 fetch failed: ${response.status}`);
+    }
+    
+    // Set appropriate headers
+    res.set({
+      'Content-Type': 'audio/wav',
+      'Content-Length': response.headers.get('content-length'),
+      'Accept-Ranges': 'bytes'
+    });
+    
+    // Pipe the audio stream
+    response.body.pipe(res);
+    
+  } catch (error) {
+    console.error(`Error proxying audio for call ${callId}:`, error);
+    res.status(500).send('Audio proxy error');
+  }
 });
 
 // Store presigned URLs for calls
