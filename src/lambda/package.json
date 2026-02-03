@@ -1,0 +1,13 @@
+{
+  "name": "audio-converter-lambda",
+  "version": "1.0.0",
+  "main": "audio-converter.js",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}
