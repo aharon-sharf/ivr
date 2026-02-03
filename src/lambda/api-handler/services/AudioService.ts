@@ -45,12 +45,13 @@ export class AudioService {
     // Generate presigned URL valid for 15 minutes
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
 
-    // Generate the public URL for the audio file
+    // Generate the public URL for the audio file (WAV version)
+    const wavKey = key.replace(/\.[^.]+$/, '.wav');
     let audioUrl: string;
     if (CLOUDFRONT_DOMAIN) {
-      audioUrl = `https://${CLOUDFRONT_DOMAIN}/${key}`;
+      audioUrl = `https://${CLOUDFRONT_DOMAIN}/${wavKey}`;
     } else {
-      audioUrl = `https://${AUDIO_BUCKET}.s3.${process.env.AWS_REGION || 'il-central-1'}.amazonaws.com/${key}`;
+      audioUrl = `https://${AUDIO_BUCKET}.s3.${process.env.AWS_REGION || 'il-central-1'}.amazonaws.com/${wavKey}`;
     }
 
     console.log('Generated presigned URL for audio upload:', {
