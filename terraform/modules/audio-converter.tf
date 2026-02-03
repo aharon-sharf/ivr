@@ -1,13 +1,13 @@
 resource "aws_lambda_function" "audio_converter" {
   function_name = "audio-converter"
-  role         = aws_iam_role.audio_converter_role.arn
-  
+  role          = aws_iam_role.audio_converter_role.arn
+
   package_type = "Image"
   image_uri    = "${aws_ecr_repository.audio_converter.repository_url}:latest"
-  
+
   timeout     = 300
   memory_size = 1024
-  
+
   environment {
     variables = {
       NODE_ENV = "production"
@@ -17,7 +17,7 @@ resource "aws_lambda_function" "audio_converter" {
 
 resource "aws_iam_role" "audio_converter_role" {
   name = "audio-converter-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -35,7 +35,7 @@ resource "aws_iam_role" "audio_converter_role" {
 resource "aws_iam_role_policy" "audio_converter_policy" {
   name = "audio-converter-policy"
   role = aws_iam_role.audio_converter_role.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -62,11 +62,11 @@ resource "aws_iam_role_policy" "audio_converter_policy" {
 
 resource "aws_s3_bucket_notification" "audio_upload_notification" {
   bucket = aws_s3_bucket.audio_files.id
-  
+
   lambda_function {
     lambda_function_arn = aws_lambda_function.audio_converter.arn
-    events             = ["s3:ObjectCreated:*"]
-    filter_prefix      = "uploads/"
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "uploads/"
   }
 }
 
