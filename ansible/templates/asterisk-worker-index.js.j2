@@ -235,10 +235,30 @@ app.get('/audio/:callId/stream', async (req, res) => {
   }
   
   try {
-    console.log(`Proxying audio for call ${callId}`);
+    console.log(`Proxying audio for call ${callId}, original URL: ${audioUrl}`);
+    
+    // Try to get WAV version first
+    let finalAudioUrl = audioUrl;
+    if (!audioUrl.endsWith('.wav')) {
+      // Convert URL to WAV version
+      const wavUrl = audioUrl.replace(/\.[^.]+$/, '.wav');
+      console.log(`Checking for WAV version: ${wavUrl}`);
+      
+      try {
+        const wavResponse = await fetch(wavUrl, { method: 'HEAD' });
+        if (wavResponse.ok) {
+          console.log(`Using WAV version: ${wavUrl}`);
+          finalAudioUrl = wavUrl;
+        } else {
+          console.log(`WAV version not found, using original: ${audioUrl}`);
+        }
+      } catch (error) {
+        console.log(`Error checking WAV version, using original: ${error.message}`);
+      }
+    }
     
     // Fetch audio from S3 and stream it
-    const response = await fetch(audioUrl);
+    const response = await fetch(finalAudioUrl);
     
     if (!response.ok) {
       throw new Error(`S3 fetch failed: ${response.status}`);
