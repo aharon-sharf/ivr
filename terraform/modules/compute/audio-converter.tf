@@ -1,4 +1,10 @@
 # Audio Converter Lambda Function
+resource "aws_cloudwatch_log_group" "audio_converter" {
+  name              = "/aws/lambda/${var.project_name}-audio-converter-${var.environment}"
+  retention_in_days = 14
+  tags              = var.tags
+}
+
 resource "aws_lambda_function" "audio_converter" {
   function_name = "${var.project_name}-audio-converter-${var.environment}"
   role          = aws_iam_role.lambda_execution.arn
@@ -9,17 +15,13 @@ resource "aws_lambda_function" "audio_converter" {
   timeout     = 300
   memory_size = 1024
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [aws_security_group.lambda.id]
-  }
-
   environment {
     variables = {
       NODE_ENV = var.environment
     }
   }
 
+  depends_on = [aws_cloudwatch_log_group.audio_converter]
   tags = var.tags
 }
 
