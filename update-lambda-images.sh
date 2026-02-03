@@ -17,6 +17,7 @@ echo ""
 # List of Lambda functions
 FUNCTIONS=(
   "api-handler"
+  "mass-voice-campaign-audio-converter"
   "dispatcher"
   "dialer-worker"
   "enrich-dial-task"

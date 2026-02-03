@@ -1,12 +1,12 @@
 # Audio Converter Lambda Function
 resource "aws_cloudwatch_log_group" "audio_converter" {
-  name              = "/aws/lambda/${var.project_name}-audio-converter-${var.environment}"
+  name              = "/aws/lambda/audio-converter-${var.environment}"
   retention_in_days = 14
   tags              = var.tags
 }
 
 resource "aws_lambda_function" "audio_converter" {
-  function_name = "${var.project_name}-audio-converter-${var.environment}"
+  function_name = "audio-converter-${var.environment}"
   role          = aws_iam_role.lambda_execution.arn
 
   package_type = "Image"
@@ -32,7 +32,7 @@ resource "aws_s3_bucket_notification" "audio_upload_notification" {
   lambda_function {
     lambda_function_arn = aws_lambda_function.audio_converter.arn
     events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "uploads/"
+    filter_prefix       = "audio/"
   }
 
   depends_on = [aws_lambda_permission.s3_invoke_audio_converter]
