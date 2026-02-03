@@ -10,9 +10,9 @@ RUN yum update -y && \
     yum clean all
 
 COPY src/lambda/audio-converter/package*.json ./
-RUN npm ci
+RUN npm install --only=production
 
 COPY src/lambda/audio-converter/audio-converter.ts ./
-RUN npm run build
+RUN npx tsc audio-converter.ts --target es2020 --module commonjs
 
 CMD ["audio-converter.handler"]
