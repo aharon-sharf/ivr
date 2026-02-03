@@ -37,7 +37,7 @@ provider "aws" {
 }
 
 # Data sources
-data "aws_caller_identity" "current" {}# Local variables
+data "aws_caller_identity" "current" {} # Local variables
 locals {
   project_name = "mass-voice-campaign"
   common_tags = {
