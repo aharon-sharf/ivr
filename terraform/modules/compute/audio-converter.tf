@@ -22,7 +22,7 @@ resource "aws_lambda_function" "audio_converter" {
   }
 
   depends_on = [aws_cloudwatch_log_group.audio_converter]
-  tags = var.tags
+  tags       = var.tags
 }
 
 # S3 trigger for audio converter
