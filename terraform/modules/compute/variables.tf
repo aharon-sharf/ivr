@@ -132,3 +132,17 @@ variable "twilio_media_ip_range" {
   type        = string
   default     = "168.86.128.0/18"
 }
+variable "ecr_repository_url" {
+  description = "ECR repository URL for Lambda container images"
+  type        = string
+}
+
+variable "audio_bucket_id" {
+  description = "Audio files S3 bucket ID"
+  type        = string
+}
+
+variable "audio_bucket_arn" {
+  description = "Audio files S3 bucket ARN"
+  type        = string
+}

@@ -36,7 +36,8 @@ provider "aws" {
   }
 }
 
-# Local variables
+# Data sources
+data "aws_caller_identity" "current" {}# Local variables
 locals {
   project_name = "mass-voice-campaign"
   common_tags = {
@@ -152,6 +153,13 @@ module "compute" {
   # S3 buckets
   audio_files_bucket = module.storage.audio_files_bucket
   ml_models_bucket   = module.storage.ml_models_bucket
+
+  # ECR repository URL
+  ecr_repository_url = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+
+  # Audio bucket details for S3 trigger
+  audio_bucket_id  = module.storage.audio_files_bucket
+  audio_bucket_arn = module.storage.audio_files_bucket_arn
 
   # Step Functions
   step_functions_state_machine_arn = module.orchestration.state_machine_arn
