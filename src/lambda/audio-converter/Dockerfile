@@ -9,9 +9,10 @@ RUN yum update -y && \
     rm -rf ffmpeg-* && \
     yum clean all
 
-COPY package*.json ./
-RUN npm ci --only=production
+COPY src/lambda/audio-converter/package*.json ./
+RUN npm ci
 
-COPY audio-converter.js ./
+COPY src/lambda/audio-converter/audio-converter.ts ./
+RUN npm run build
 
 CMD ["audio-converter.handler"]
